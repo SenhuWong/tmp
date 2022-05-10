@@ -1,0 +1,13 @@
+set(SRC ${SRC}
+${CMAKE_CURRENT_SOURCE_DIR}/UnstructFeeder.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/commCell.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/TopologyHolderStrategy.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/UnstructIntegrator.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/Euler2D.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/FluxStrategy.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/LimiterStrategy.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/TimeStrategy.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/Vankatakrishnan_Limiter.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/FlowParamComputer.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/LU_SGS_Strategy.cpp
+PARENT_SCOPE)

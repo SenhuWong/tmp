@@ -1,0 +1,13 @@
+set(SRC main.cpp Orchestra.cpp)
+add_subdirectory(reader)
+add_subdirectory(samrai)
+add_subdirectory(UniTioga)
+add_subdirectory(mathTools)
+add_subdirectory(toolBox)
+add_subdirectory(UnstructSolver)
+add_executable(myAPP ${SRC})
+set_property(TARGET myAPP PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+set(MYSRC_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(myAPP PUBLIC ${INCLUDE_DIR} ${MPI_CXX_INCLUDE_DIRS} ${HDF5_INCLUDE_DIR} ${METIS_INCLUDE_DIR} ${VENDOR_INCLUDE_DIR} ${MYSRC_DIR})
+
+target_link_libraries(myAPP ${SAMRAI_LIBRARIES} ${METIS_LIBS})

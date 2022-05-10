@@ -1,0 +1,112 @@
+
+//Have nothing to do 
+
+
+TIOGA{
+    dim = 2
+    mexclude = 1
+    nfringe = 2
+    using_weight = TRUE
+
+}
+
+Reader{
+    dim = 2
+    nmesh = 2
+    overTag = -2147483647
+    wallTag = -2
+    mesh_1 = "part1.grd"
+    mesh_2 = "part2.grd"
+
+
+}
+
+//
+GlobalInput{
+    call_abort_in_serial_instead_of_exit = TRUE
+}
+
+SAMRAI{
+    dim = 2
+
+    base_name = "test"
+
+    log_filename = "test.log"
+
+    log_all_nodes = TRUE
+
+    viz_dump_interval = 1
+
+    viz_dump_dirname = "viz_pureGeo"
+
+    visit_number_procs_per_file = 1
+
+    restart_interval = 0
+
+    buffer_size = 3
+
+    CartesianGeometry{
+        domain_boxes = [(0,0),(19,19)]
+        x_lo = -4.e0, -4.e0
+        x_up =  4.e0,  4.e0
+    }
+
+    PatchHierarchy{
+        max_levels = 6
+
+        ratio_to_coarser{
+            level_1 = 2 , 2
+            level_2 = 2 , 2
+            level_3 = 2 , 2
+            level_4 = 2 , 2
+            level_5 = 2 , 2
+            level_6 = 2 , 2
+        }
+        largest_patch_size{
+            level_0 = 48 , 48
+        }
+        smallest_patch_size{
+            level_0 = 8 , 8
+        }
+
+    }
+
+    PureGeoStrategy{
+    
+    }
+
+    InterpStrategy{
+        qnodeSize = 3
+        qnode = 0.0, -1.0, 1.0
+        geo_fine_level = 5
+    }
+
+    OversetStrategy{
+        maximum_refine_level = 6
+    }
+
+    PureGeometircIntegrator{
+
+    }
+
+    StandardTagAndInitialize{
+        tagging_method = "GRADIENT_DETECTOR"
+    }
+
+    BergerRigoutsos{
+        efficiency_tolerance = 0.70e0
+        combine_efficiency = 0.85e0
+    }
+
+    LoadBalancer{
+
+    }
+
+    GriddingAlgorithm
+    {
+
+    }
+}
+
+
+
