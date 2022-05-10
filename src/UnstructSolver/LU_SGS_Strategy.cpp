@@ -58,28 +58,21 @@ LUSGSStrategy::LUSGSStrategy(UnstructTopologyHolder *hder, Euler2D* hder_strateg
     
     d_hder_strategy->test_unwantedSweep(ForwardSweep_Only,nForwardSweep_Only);
 
-    d_diagOperator = new double**[d_nmesh];
-    
-    d_deltaW = new double**[d_nmesh];
-    d_deltaW1 = new double**[d_nmesh];
-    W_scratch = new double**[d_nmesh];
+    d_diagOperator = new double*[d_nmesh];
+    d_deltaW = new double*[d_nmesh];
+    d_deltaW1 = new double*[d_nmesh];
+    W_scratch = new double*[d_nmesh];
+
     d_stableDt = new double*[d_nmesh];
 
     for(int i = 0 ;i<d_nmesh;i++)
     {
-        d_diagOperator[i] = new double*[d_NEQU];
-        d_deltaW[i] = new double*[d_NEQU];
-        d_deltaW1[i] = new double*[d_NEQU];
-        W_scratch[i] = new double*[d_NEQU];
+        d_diagOperator[i] = new double[d_NEQU*d_hder->nCells(i)];
+        d_deltaW[i] = new double[d_NEQU*d_hder->nCells(i)];
+        d_deltaW1[i] = new double[d_NEQU*d_hder->nCells(i)];
+        W_scratch[i] = new double[d_NEQU*d_hder->nCells(i)];
 
         d_stableDt[i] = new double[d_hder->nCells(i)];
-        for(int j = 0;j<d_NEQU;j++)
-        {
-            d_diagOperator[i][j] = new double[d_hder->nCells(i)];
-            d_deltaW[i][j] = new double[d_hder->nCells(i)];
-            d_deltaW1[i][j] = new double[d_hder->nCells(i)];
-            W_scratch[i][j] = new double[d_hder->nCells(i)];
-        }
     }
 }
 void LUSGSStrategy::initialize()
@@ -87,7 +80,7 @@ void LUSGSStrategy::initialize()
     d_hder_strategy->initializeData();
     
     const double Gamma = 1.4;
-    double ***U = d_hder_strategy->getU();
+    double **U = d_hder_strategy->getU();
     for(int i = 0;i<d_nmesh;i++)
     {
         for(int k = 0; k< d_hder->nCells(i); k++)
@@ -95,11 +88,11 @@ void LUSGSStrategy::initialize()
             double VMSquare = 0;
             for (int l = 0; l < d_dim; l++)
             {
-                VMSquare += U[i][l + 2][k] * U[i][l + 2][k];
-                W_scratch[i][l + 2][k] = U[i][0][k] * U[i][l + 2][k];
+                VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
+                W_scratch[i][l + 2+d_NEQU*k] = U[i][0+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
             }
-            W_scratch[i][0][k] = U[i][0][k];
-            W_scratch[i][1][k] = U[i][1][k] / (Gamma - 1) + 0.5 * U[i][0][k] * VMSquare;
+            W_scratch[i][0+d_NEQU*k] = U[i][0+d_NEQU*k];
+            W_scratch[i][1+d_NEQU*k] = U[i][1+d_NEQU*k] / (Gamma - 1) + 0.5 * U[i][0+d_NEQU*k] * VMSquare;
         }
     }
 }
@@ -109,7 +102,7 @@ void LUSGSStrategy::preprocessUpdate()
     //Do nothing cuz U is obtained from W_scratch.
     return;
     const double Gamma = 1.4;
-    double ***U = d_hder_strategy->getU();
+    double **U = d_hder_strategy->getU();
     for(int i = 0;i<d_nmesh;i++)
     {
         for(int k = 0; k< d_hder->nCells(i); k++)
@@ -117,11 +110,11 @@ void LUSGSStrategy::preprocessUpdate()
             double VMSquare = 0;
             for (int l = 0; l < d_dim; l++)
             {
-                VMSquare += U[i][l + 2][k] * U[i][l + 2][k];
-                W_scratch[i][l + 2][k] = U[i][0][k] * U[i][l + 2][k];
+                VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
+                W_scratch[i][l + 2+d_NEQU*k] = U[i][0+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
             }
-            W_scratch[i][0][k] = U[i][0][k];
-            W_scratch[i][1][k] = U[i][1][k] / (Gamma - 1) + 0.5 * U[i][0][k] * VMSquare;
+            W_scratch[i][0+d_NEQU*k] = U[i][0+d_NEQU*k];
+            W_scratch[i][1+d_NEQU*k] = U[i][1+d_NEQU*k] / (Gamma - 1) + 0.5 * U[i][0+d_NEQU*k] * VMSquare;
         }
     }
 }
@@ -241,23 +234,23 @@ void LUSGSStrategy::UpdateSerial()
 void LUSGSStrategy::UpdatePrimitiveVariable()
 {
     const double Gamma = 1.4;
-    double*** U = d_hder_strategy->getU();
+    double** U = d_hder_strategy->getU();
     for(int i = 0;i<d_nmesh;i++)
     {
         for(int k = 0;k<d_hder->nCells(i);k++)
         {
             for(int j = 0;j<d_NEQU;j++)
             {
-                W_scratch[i][j][k] = W_scratch[i][j][k] + d_deltaW[i][j][k];
+                W_scratch[i][j+d_NEQU*k] = W_scratch[i][j+d_NEQU*k] + d_deltaW[i][j+d_NEQU*k];
             }
-            U[i][0][k] = W_scratch[i][0][k];
+            U[i][0+d_NEQU*k] = W_scratch[i][0+d_NEQU*k];
             double VMSquare = 0;
             for (int l = 0; l < d_dim; l++)
             {
-                U[i][l + 2][k] = W_scratch[i][l + 2][k] / U[i][0][k];
-                VMSquare += U[i][l + 2][k] * U[i][l + 2][k];            
+                U[i][l + 2+d_NEQU*k] = W_scratch[i][l + 2+d_NEQU*k] / U[i][0+d_NEQU*k];
+                VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];            
             }
-            U[i][1][k] = (Gamma - 1) * (W_scratch[i][1][k] - 0.5 * U[i][0][k] * VMSquare);
+            U[i][1+d_NEQU*k] = (Gamma - 1) * (W_scratch[i][1+d_NEQU*k] - 0.5 * U[i][0+d_NEQU*k] * VMSquare);
         }
     }
 }
@@ -343,26 +336,17 @@ void LUSGSStrategy::SolveBackwardSweepSerial()
 void LUSGSStrategy::UpdateConservativeForRecvCells()
 {
     double Gamma = 1.4;
-    double*** U = d_hder_strategy->getU();
+    double** U = d_hder_strategy->getU();
     for(int i = 0;i<d_nmesh;i++)
     {
         for(auto iter = d_hder->recvBegin(i);iter!=d_hder->recvEnd(i);iter++)
         {
             int cellId = iter->d_localId;
-            W_scratch[i][0][cellId] = U[i][0][cellId];
-            W_scratch[i][2][cellId] = U[i][0][cellId]*U[i][2][cellId];
-            W_scratch[i][3][cellId] = U[i][0][cellId]*U[i][3][cellId];
-            W_scratch[i][1][cellId] = U[i][1][cellId]/(Gamma - 1) 
-            + 0.5*U[i][0][cellId]*(powf64(U[i][2][cellId],2)+powf64(U[i][3][cellId],2));
+            W_scratch[i][0+d_NEQU*cellId] = U[i][0+d_NEQU*cellId];
+            W_scratch[i][2+d_NEQU*cellId] = U[i][0+d_NEQU*cellId]*U[i][2+d_NEQU*cellId];
+            W_scratch[i][3+d_NEQU*cellId] = U[i][0+d_NEQU*cellId]*U[i][3+d_NEQU*cellId];
+            W_scratch[i][1+d_NEQU*cellId] = U[i][1+d_NEQU*cellId]/(Gamma - 1) 
+            + 0.5*U[i][0+d_NEQU*cellId]*(powf64(U[i][2+d_NEQU*cellId],2)+powf64(U[i][3+d_NEQU*cellId],2));
         }
-        // for(int k = 0;k<nForwardSweep_Only[i];k++)
-        // {
-        //     int cellId = ForwardSweep_Only[i][k];
-        //     W_scratch[i][0][cellId] = U[i][0][cellId];
-        //     W_scratch[i][2][cellId] = U[i][0][cellId]*U[i][2][cellId];
-        //     W_scratch[i][3][cellId] = U[i][0][cellId]*U[i][3][cellId];
-        //     W_scratch[i][1][cellId] = U[i][1][cellId]/(Gamma - 1) 
-        //     + 0.5*U[i][0][cellId]*(powf64(U[i][2][cellId],2)+powf64(U[i][3][cellId],2));
-        // }
     }
 }

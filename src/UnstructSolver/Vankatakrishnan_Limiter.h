@@ -14,17 +14,20 @@
 class Vankatakrishnan_Limiter : public LimiterStrategy
 {
 private:
-    double*** Umax=NULL;
-    double*** Umin=NULL;
-
+    double ** Umax=NULL;
+    double ** Umin=NULL;
+    double ** mesh_var_cell_limit = NULL;
+    
 public:
     Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, Euler2D *hder_strategy);
+
+    ~Vankatakrishnan_Limiter();
 
     void computeLimiter(); // cell_ind starts from 0
     
     double getLimiter(int meshInd, int equInd, int cellInd);
 
-    void write_Lmitera();
+    // void write_Lmitera();
 
     void computeLeftRight();
 

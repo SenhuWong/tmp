@@ -71,8 +71,8 @@ public:
         {
             d_hder_strategy->SolveTime(stableDt,d_CFL_number);
         }
-        double ***residual = d_hder_strategy->getResidual();
-        double ***U = d_hder_strategy->getU();
+        double ** Residual = d_hder_strategy->getResidual();
+        double **U = d_hder_strategy->getU();
         for (int l = 0; l < d_nstage; l++)
         {
             for (int i = 0; i < d_nmesh; i++)
@@ -86,16 +86,16 @@ public:
                     for (int j = 0; j < d_NEQU; j++)
                     {
                         // W_scratch is in conservative form
-                        U[i][j][k] = W_scratch[i][j][k] + d_stage_efficient[iStage] * stableDt[i][k] * (-residual[i][j][k]) / curCell.volume();
+                        U[i][j+d_NEQU*k] = W_scratch[i][j][k] + d_stage_efficient[iStage] * stableDt[i][k] * (-Residual[i][j+d_NEQU*k]) / curCell.volume();
                     }
                     // W[i][0][k] is the same
                     double VMSquare = 0;
                     for (int l = 0; l < d_dim; l++)
                     {
-                        U[i][l + 2][k] = U[i][l + 2][k] / U[i][0][k];
-                        VMSquare += U[i][l + 2][k] * U[i][l + 2][k];
+                        U[i][l + 2+d_NEQU*k] = U[i][l + 2+d_NEQU*k] / U[i][0+d_NEQU*k];
+                        VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
                     }
-                    U[i][1][k] = (Gamma - 1) * (U[i][1][k] - 0.5 * U[i][0][k] * VMSquare);
+                    U[i][1+d_NEQU*k] = (Gamma - 1) * (U[i][1+d_NEQU*k] - 0.5 * U[i][0+d_NEQU*k] * VMSquare);
                 }
             }
         }
@@ -126,14 +126,14 @@ public:
     }
     bool converged()
     {
-        double ***U = d_hder_strategy->getU();
+        double **U = d_hder_strategy->getU();
         for (int i = 0; i < d_nmesh; i++)
         {
             Residual = 0;
             auto &curBlk = d_hder->blk2D[i];
             for (int j = 0; j < curBlk.d_nCs; j++)
             {
-                Residual += abs(U[i][0][j] - W_scratch[i][0][j]);
+                Residual += abs(U[i][0+d_NEQU*j] - W_scratch[i][0][j]);
                 // std::cout<<W[i][0][j]<<" "<<W_scratch[i][0][j]<<'\n';
             }
             if (i == 0)
@@ -201,7 +201,7 @@ private:
     {
         const double Gamma = 1.4;
         // Fill W into W_scratch
-        double ***U = d_hder_strategy->getU();
+        double **U = d_hder_strategy->getU();
         for (int i = 0; i < d_nmesh; i++)
         {
             for (int k = 0; k < d_hder->nCells(i); k++)
@@ -209,11 +209,11 @@ private:
                 double VMSquare = 0;
                 for (int l = 0; l < d_dim; l++)
                 {
-                    VMSquare += U[i][l + 2][k] * U[i][l + 2][k];
-                    W_scratch[i][l + 2][k] = U[i][0][k] * U[i][l + 2][k];
+                    VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
+                    W_scratch[i][l + 2][k] = U[i][0+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
                 }
-                W_scratch[i][0][k] = U[i][0][k];
-                W_scratch[i][1][k] = U[i][1][k] / (Gamma - 1) + 0.5 * U[i][0][k] * VMSquare;
+                W_scratch[i][0][k] = U[i][0+d_NEQU*k];
+                W_scratch[i][1][k] = U[i][1+d_NEQU*k] / (Gamma - 1) + 0.5 * U[i][0+d_NEQU*k] * VMSquare;
             }
         }
         // Clear Projection(Spectrum) for this step
@@ -224,7 +224,7 @@ private:
     void postprocessUpdate()
     {
         // Do A Cleaning of BufferCells
-        d_hder_strategy->cleaning(W_scratch);
+        // d_hder_strategy->cleaning(W_scratch);
     }
     void Update(int iStage)
     {
@@ -237,8 +237,8 @@ private:
         {
             d_hder_strategy->SolveTime(stableDt,d_CFL_number);
         }
-        double ***residual = d_hder_strategy->getResidual();
-        double ***U = d_hder_strategy->getU();
+        double ** Residual = d_hder_strategy->getResidual();
+        double ** U = d_hder_strategy->getU();
         for (int l = 0; l < d_nstage; l++)
         {
             for (int i = 0; i < d_nmesh; i++)
@@ -252,16 +252,16 @@ private:
                     for (int j = 0; j < d_NEQU; j++)
                     {
                         // W_scratch is in conservative form
-                        U[i][j][k] = W_scratch[i][j][k] + d_stage_efficient[iStage] * stableDt[i][k] * (-residual[i][j][k]) / curCell.volume();
+                        U[i][j+d_NEQU*k] = W_scratch[i][j][k] + d_stage_efficient[iStage] * stableDt[i][k] * (-Residual[i][j+d_NEQU*k]) / curCell.volume();
                     }
                     // W[i][0][k] is the same
                     double VMSquare = 0;
                     for (int l = 0; l < d_dim; l++)
                     {
-                        U[i][l + 2][k] = U[i][l + 2][k] / U[i][0][k];
-                        VMSquare += U[i][l + 2][k] * U[i][l + 2][k];
+                        U[i][l + 2+d_NEQU*k] = U[i][l + 2+d_NEQU*k] / U[i][0+d_NEQU*k];
+                        VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
                     }
-                    U[i][1][k] = (Gamma - 1) * (U[i][1][k] - 0.5 * U[i][0][k] * VMSquare);
+                    U[i][1+d_NEQU*k] = (Gamma - 1) * (U[i][1+d_NEQU*k] - 0.5 * U[i][0+d_NEQU*k] * VMSquare);
                 }
             }
         }

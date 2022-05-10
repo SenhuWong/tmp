@@ -11,12 +11,12 @@ private:
     int * nForwardSweep_Only = NULL;
 
     double d_CFL_number = 400;
-    double *** d_diagOperator = NULL;
+    double ** d_diagOperator = NULL;
     double ** d_stableDt = NULL;
-    double *** W_scratch = NULL;
-    double *** d_deltaW = NULL;
-    double *** d_deltaW1 = NULL;
-    double *** dFi = NULL;
+    double ** W_scratch = NULL;
+    double ** d_deltaW = NULL;
+    double ** d_deltaW1 = NULL;
+    double ** dFi = NULL;
 
 public:
     LUSGSStrategy(UnstructTopologyHolder *hder, Euler2D* hder_strategy);

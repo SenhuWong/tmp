@@ -653,24 +653,20 @@ void unstruct_main()
         {
             lusgs->singleStep(i);
             
-            // if(i%50==0)
-            // {
-            //     std::cout<<i<<'\n';
-            // }
+            if(i%100==0)
+            {
+                std::cout<<i<<'\n';
+            }
             if(i%5000==0)
             {
                 euler->withinBlockCommunication();
-
                 euler->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,euler->getU());
             }
         }
         // std::cout<<"Finished?\n";
         std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
         euler->outPutCp(Cp_name,0);
-
     }
-    //rk_integrator->writeCell();
-    // euler->writeCellData("AfterTIme",cur_proc,0,euler->getU());
     std::cout<<"MPI BARRIER?\n";
     MPI_Barrier(MPI_COMM_WORLD);
     std::cout<<"MPI BARRIERED\n";
@@ -706,7 +702,7 @@ int main(int argc, char *argv[])
         orchestra_main(argc, argv);
     }
     bool unstruct_used = true;
-    bool serial_used = true;
+    bool serial_used = false;
     
     if(unstruct_used)
     {

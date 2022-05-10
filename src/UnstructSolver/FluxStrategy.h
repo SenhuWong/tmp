@@ -26,7 +26,6 @@ protected:
 
 public:
     virtual void computeFlux() = 0;
-    virtual void computeFlux1() = 0;
     void setComm(int num,int cur)
     {
         num_proc = num;

@@ -60,15 +60,15 @@ private:
     //  Data storage for Cell Variables
 
     // Variables in CELLS  [blk][][cell]
-    double ***U = NULL; // Conservatives
+    double **U = NULL; // Conservatives
     GeomElements::vector3d<2, double> ***gradU = NULL;
     double ***UL = NULL;
     double ***UR = NULL;
-    double ***Residual = NULL; // Sum of edge's fluxes
+    double ** Residual = NULL; // Sum of edge's fluxes
     double **Spectrum_cell = NULL;
 
     // Variables in EDGES  [equ][blk][edge]
-    double ***U_edge = NULL;
+    double *** U_edge = NULL;
     double ***Flux_edge = NULL;
     double **Spectrum_edge = NULL;
 
@@ -76,10 +76,6 @@ private:
     // LimiterStrategy:
     Vankatakrishnan_Limiter *d_limiter = NULL;
     FluxStrategy *d_fluxComputer = NULL;
-    // TimeStrategy *d_timeIntegrator = NULL;
-
-    // double ***Wmax = NULL;
-    // double ***Wmin = NULL;
 
     int **testing_flag = NULL;
 
@@ -146,14 +142,9 @@ public:
     void updateEdgeLeftRightValues();
     // Update flux with the corresponding left and right value
     void updateFlux();
-    inline double ***getU()
+    inline double **getU()
     {
         return U;
-    }
-
-    inline double ***getUEdge()
-    {
-        return U_edge;
     }
 
     inline GeomElements::vector3d<2, double> ***getGradient()
@@ -176,7 +167,7 @@ public:
         return Flux_edge;
     }
 
-    inline double ***getResidual()
+    inline double **getResidual()
     {
         return Residual;
     }
@@ -231,7 +222,7 @@ public:
     
     void test_MultipleCommunication();
 
-    void cleaning(double ***W0)
+    void cleaning(double **W0)
     {
         for (int i = 0; i < d_hder->d_nmesh; i++)
         {
@@ -239,8 +230,8 @@ public:
             {
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    U[i][j][iter->d_localId] = 0;
-                    W0[i][j][iter->d_localId] = 0;
+                    U[i][j+d_NEQU*iter->d_localId] = 0;
+                    W0[i][j+d_NEQU*iter->d_localId] = 0;
                 }
             }
         }
@@ -250,7 +241,7 @@ public:
     {
     }
 
-    void SolveDiag(double*** de_diag, double** dt )
+    void SolveDiag(double** de_diag, double** dt )
     {
         double OMEGAN = 5;
         for(int i = 0;i<d_nmesh;i++)
@@ -262,7 +253,7 @@ public:
                 double diag = curCell.volume()/dt[i][k] + 0.5*OMEGAN*Spectrum_cell[i][k];
                 for(int j = 0;j<d_NEQU;j++)
                 {
-                    de_diag[i][j][k] = diag;
+                    de_diag[i][j+d_NEQU*k] = diag;
                 }
             }
         }
@@ -286,7 +277,7 @@ public:
 
     
     void SolveDF(int curMesh,int curCell,int curEdge,
-                double***W_scratch ,double*** deltaW0,double* DF,
+                double** W_scratch ,double** deltaW0,double* DF,
                 int ForB,int cellOffset)
     {
         // if(cur_proc==0)
@@ -313,8 +304,8 @@ public:
                 }
                 for(int j = 0;j<d_NEQU;j++)
                 {
-                    W0[j] = W_scratch[curMesh][j][rC];
-                    Wp[j] =W0[j] + deltaW0[curMesh][j][rC];
+                    W0[j] = W_scratch[curMesh][j+d_NEQU*rC];
+                    Wp[j] =W0[j] + deltaW0[curMesh][j+d_NEQU*rC];
                     W[j] = W0[j];
                 }
                 //Get convectiveFlux
@@ -349,8 +340,8 @@ public:
                 }
                 for(int j = 0;j<d_NEQU;j++)
                 {
-                    W0[j] = W_scratch[curMesh][j][lC];
-                    Wp[j] = W0[j] + deltaW0[curMesh][j][lC];
+                    W0[j] = W_scratch[curMesh][j+d_NEQU*lC];
+                    Wp[j] = W0[j] + deltaW0[curMesh][j+d_NEQU*lC];
                     W[j] = W0[j];
                 }
                 //Get convectiveFlux
@@ -388,8 +379,8 @@ public:
 
 
     //The skip point in here are level 1 sendcells and level 1,2 recvcells.
-    void SolveLocalForwardSweep(double*** diag,
-                                double*** W_scratch,double*** deltaW1,
+    void SolveLocalForwardSweep(double** diag,
+                                double** W_scratch,double** deltaW1,
                                 int** skip_point,int* nskip)
     {
         int ForB = 1;
@@ -426,15 +417,15 @@ public:
                     
                     for(int j = 0;j<d_NEQU;j++)
                     {
-                        deltaW1[i][j][cellId] = (-Residual[i][j][cellId] - dFi[j])/diag[i][j][cellId];
+                        deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId] - dFi[j])/diag[i][j+d_NEQU*cellId];
                     }
                 }
             }
         }
     }
     //The skip point in here are level 1 cells.
-    void SolveBoundaryForwardSweep(double*** diag,
-                                double*** W_scratch,double*** deltaW1,
+    void SolveBoundaryForwardSweep(double** diag,
+                                double** W_scratch,double** deltaW1,
                                 int** skip_point,int * nskip)
     {
         int ForB = 1;
@@ -463,14 +454,14 @@ public:
                 }
                 for(int j = 0;j<d_NEQU;j++)
                 {
-                    deltaW1[i][j][cellId] = (-Residual[i][j][cellId]-dFi[j])/diag[i][j][cellId];
+                    deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId]-dFi[j])/diag[i][j+d_NEQU*cellId];
 ;               }   
             }
         }
     }
 
-    void SolveBoundaryBackwardSweep(double*** diag,
-                                    double*** W_scratch,double*** deltaW1,double*** deltaW,
+    void SolveBoundaryBackwardSweep(double** diag,
+                                    double** W_scratch,double** deltaW1,double** deltaW,
                                     int ** skip_point,int * nskip)
     {
         int ForB = 0;
@@ -498,15 +489,15 @@ public:
                 }
                 for(int j = 0;j < d_NEQU;j++)
                 {
-                    deltaW[i][j][cellId] = deltaW1[i][j][cellId] - dFi[j]/diag[i][j][cellId];
+                    deltaW[i][j+d_NEQU*cellId] = deltaW1[i][j+d_NEQU*cellId] - dFi[j]/diag[i][j+d_NEQU*cellId];
                 }
             }
         }
 
     }
 
-    void SolveLocalBackwardSweep(double*** diag,
-                                double*** W_scratch,double*** deltaW1,double*** deltaW,
+    void SolveLocalBackwardSweep(double** diag,
+                                double** W_scratch,double** deltaW1,double** deltaW,
                                 int** skip_point,int* nskip)
     {
         int ForB = 0;
@@ -536,15 +527,15 @@ public:
                     }
                     for(int j = 0;j<d_NEQU;j++)
                     {
-                        deltaW[i][j][cellId] = deltaW1[i][j][cellId] - dFi[j]/diag[i][j][cellId];
+                        deltaW[i][j+d_NEQU*cellId] = deltaW1[i][j+d_NEQU*cellId] - dFi[j]/diag[i][j+d_NEQU*cellId];
                     }
                 }
             }
         }
     }
 
-    void SolveForwardSweep(double*** diag,
-                        double*** W_scratch,double*** deltaW1)
+    void SolveForwardSweep(double** diag,
+                        double** W_scratch,double** deltaW1)
     {
         int ForB = 1;
         double dFi[d_NEQU];
@@ -569,14 +560,14 @@ public:
                 }
                 for(int j = 0;j<d_NEQU;j++)
                 {
-                    deltaW1[i][j][k] = (-Residual[i][j][k]-dFi[j])/diag[i][j][k];
+                    deltaW1[i][j+d_NEQU*k] = (-Residual[i][j+d_NEQU*k]-dFi[j])/diag[i][j+d_NEQU*k];
                 }
             }
         }
     }
 
-    void SolveBackwardSweep(double*** diag,
-                            double*** W_scratch,double*** deltaW1,double*** deltaW)
+    void SolveBackwardSweep(double** diag,
+                            double** W_scratch,double** deltaW1,double** deltaW)
     {
         int ForB = 0;
         double dFi[d_NEQU];
@@ -601,21 +592,21 @@ public:
                 }
                 for(int j = 0;j<d_NEQU;j++)
                 {
-                    deltaW[i][j][k] = deltaW1[i][j][k] - dFi[j]/diag[i][j][k];
+                    deltaW[i][j+d_NEQU*k] = deltaW1[i][j+d_NEQU*k] - dFi[j]/diag[i][j+d_NEQU*k];
                 }
             }
         }
     }
 
-    void RemoteCellCommunication(double*** value);
+    void RemoteCellCommunication(double** value);
 
-    void NearCellCommunication(double*** value);
+    void NearCellCommunication(double** value);
 
     
 //These are all about writing
     void writeTiogaFormat(const std::string &filename, int proc, int meshTag, int *icelldata);
 
-    void writeCellData(const std::string &filename, int proc, int meshTag, double ***dcelldata);
+    void writeCellData(const std::string &filename, int proc, int meshTag, double **dcelldata);
     void writeCellData(const std::string &filename, int proc, int meshTag, int ***icelldata);
 
     void outPutNondim(const std::string &filename, int proc)
@@ -662,52 +653,6 @@ public:
                     fout << Wedge[i][l][j] << " ";
                 }
                 fout << '\n';
-            }
-            fout.close();
-        }
-    }
-    void writeBoundaryInfo(std::string &filename)
-    {
-
-        for (int i = 0; i < d_nmesh; i++)
-        {
-            std::string local_filename = filename + std::to_string(i) + std::to_string(cur_proc);
-            std::ofstream fout;
-            fout.open(local_filename);
-            auto &curBlk = d_hder->blk2D[i];
-            for (int j = 0; j < d_hder->nEdges(i); j++)
-            {
-                auto &curEdge = curBlk.d_localEdges[j];
-                int rC = curEdge.rCInd();
-                int lC = curEdge.lCInd();
-                if (rC == GeomElements::edge3d<2>::BoundaryType::WALL)
-                {
-                    fout << "Edge " << j << " Right is Wall:\n";
-                    fout << "Edge's normal is " << curEdge.normal_vector()[0] << "," << curEdge.normal_vector()[1] << '\n';
-                    fout << "Edge's center is " << curEdge.center()[0] << "," << curEdge.center()[1] << '\n';
-                    fout << "Edge's area is " << curEdge.area() << '\n';
-                    fout << U_edge[i][0][j] << "," << U_edge[i][1][j] << "," << U_edge[i][2][j] << "," << U_edge[i][3][j] << "\n";
-                    fout << "\t left Cell is:\n";
-                    fout << U[i][0][lC] << "," << U[i][1][lC] << "," << U[i][2][lC] << "," << U[i][3][lC] << "\n";
-                }
-            }
-            for (int j = 0; j < d_hder->nEdges(i); j++)
-            {
-                auto &curEdge = curBlk.d_localEdges[j];
-                int lC = curEdge.lCInd();
-                int rC = curEdge.rCInd();
-                if (rC == GeomElements::edge3d<2>::BoundaryType::FARFIELD)
-                {
-                    fout << "Edge " << j << " Right is FARFIELD:\n";
-                    fout << "Edge's normal is " << curEdge.normal_vector()[0] << "," << curEdge.normal_vector()[1] << '\n';
-                    fout << "Edge's center is " << curEdge.center()[0] << "," << curEdge.center()[1] << '\n';
-                    fout << "Edge's area is " << curEdge.area() << '\n';
-                    fout << U_edge[i][0][j] << "," << U_edge[i][1][j] << "," << U_edge[i][2][j] << "," << U_edge[i][3][j] << "\n";
-                    fout << "\t left Cell is:\n";
-                    fout << U[i][0][lC] << "," << U[i][1][lC] << "," << U[i][2][lC] << "," << U[i][3][lC] << "\n";
-                    fout << "Far field var is:\n";
-                    fout << fsnd_density << "," << fsnd_pressure << "," << fsnd_velocity_components[0] << "," << fsnd_velocity_components[1] << '\n';
-                }
             }
             fout.close();
         }

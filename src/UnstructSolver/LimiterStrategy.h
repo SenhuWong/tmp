@@ -12,8 +12,7 @@ class LimiterStrategy
 public:
     int d_nmesh = -1;
     int d_dim = 0;
-    int d_nequ = 0;
-    double ***mesh_var_cell_limit = NULL;
+    int d_NEQU = 0;
     UnstructTopologyHolder *d_hder = NULL;
     Euler2D *d_hder_strategy = NULL;
 #define DEBUG
