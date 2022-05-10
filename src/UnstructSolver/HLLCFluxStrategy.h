@@ -23,9 +23,9 @@ public:
         // if (cur_proc == 0)
         // std::cout<<"ComputeFlux1 being called\n";
         const double Gamma = 1.4;
-        double ***UL = d_hder_strategy->getUL();
-        double ***UR = d_hder_strategy->getUR();
-        double ***Flux = d_hder_strategy->getFluxEdge();
+        double **UL = d_hder_strategy->getUL();
+        double **UR = d_hder_strategy->getUR();
+        double **Flux = d_hder_strategy->getFluxEdge();
         
         for (int i = 0; i < d_nmesh; i++)
         {
@@ -41,46 +41,46 @@ public:
                 }
                 if (rC == GeomElements::edge3d<2>::BoundaryType::WALL)
                 {
-                    Flux[i][0][k] = 0 * curEdge.area();
-                    Flux[i][1][k] = 0 * curEdge.area();
-                    double PatFace = UL[i][1][k];
+                    Flux[i][0+d_NEQU*k] = 0 * curEdge.area();
+                    Flux[i][1+d_NEQU*k] = 0 * curEdge.area();
+                    double PatFace = UL[i][1+d_NEQU*k];
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Flux[i][l + 2][k] = PatFace * curEdge.normal_vector()[l] * curEdge.area();
+                        Flux[i][l + 2+d_NEQU*k] = PatFace * curEdge.normal_vector()[l] * curEdge.area();
                     }
                 }
                 else if (rC == GeomElements::edge3d<2>::BoundaryType::FARFIELD)
                 {
-                    double DatFace = UL[i][0][k];
-                    double PatFace = UL[i][1][k];
+                    double DatFace = UL[i][0+d_NEQU*k];
+                    double PatFace = UL[i][1+d_NEQU*k];
                     GeomElements::vector3d<2, double> Velocity;
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Velocity[l] = UL[i][l + 2][k];
+                        Velocity[l] = UL[i][l + 2+d_NEQU*k];
                     }
                     double rhoEatFace = PatFace / (Gamma - 1) + 0.5 * DatFace * (Velocity.L2Square());
 
                     double normalVelocity = Velocity.dot_product(curEdge.normal_vector());
-                    Flux[i][0][k] = normalVelocity * DatFace * curEdge.area();
-                    Flux[i][1][k] = normalVelocity * (rhoEatFace + PatFace) * curEdge.area();
+                    Flux[i][0+d_NEQU*k] = normalVelocity * DatFace * curEdge.area();
+                    Flux[i][1+d_NEQU*k] = normalVelocity * (rhoEatFace + PatFace) * curEdge.area();
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Flux[i][l + 2][k] = (normalVelocity * DatFace * Velocity[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
+                        Flux[i][l + 2+d_NEQU*k] = (normalVelocity * DatFace * Velocity[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
                     }
                 }
                 else // Is an inner edge, use HLLC
                 {
                     // First compute enthalpy
-                    double density_left = UL[i][0][k];
-                    double pressure_left = UL[i][1][k];
-                    GeomElements::vector3d<2, double> velocity_left(UL[i][2][k], UL[i][3][k]);
+                    double density_left = UL[i][0+d_NEQU*k];
+                    double pressure_left = UL[i][1+d_NEQU*k];
+                    GeomElements::vector3d<2, double> velocity_left(UL[i][2+d_NEQU*k], UL[i][3+d_NEQU*k]);
                     double Vn_left = velocity_left.dot_product(curEdge.normal_vector());
                     double soundspeed_left = sqrtf64(Gamma * pressure_left / density_left);
                     double enthalpy_left = pressure_left * Gamma / ((Gamma - 1) * density_left) + 0.5 * velocity_left.L2Square();
 
-                    double density_righ = UR[i][0][k];
-                    double pressure_righ = UR[i][1][k];
-                    GeomElements::vector3d<2, double> velocity_righ(UR[i][2][k], UR[i][3][k]);
+                    double density_righ = UR[i][0+d_NEQU*k];
+                    double pressure_righ = UR[i][1+d_NEQU*k];
+                    GeomElements::vector3d<2, double> velocity_righ(UR[i][2+d_NEQU*k], UR[i][3+d_NEQU*k]);
                     double Vn_righ = velocity_righ.dot_product(curEdge.normal_vector());
                     double soundspeed_righ = sqrtf64(Gamma * pressure_righ / density_righ);
                     double enthalpy_righ = pressure_righ * Gamma / ((Gamma - 1) * density_righ) + 0.5 * velocity_righ.L2Square();
@@ -108,28 +108,28 @@ public:
                     }
                     if (Sl > 0.0)
                     {
-                        double DatFace = UL[i][0][k];
-                        double PatFace = UL[i][1][k];
+                        double DatFace = UL[i][0+d_NEQU*k];
+                        double PatFace = UL[i][1+d_NEQU*k];
                         double rhoEatFace = PatFace / (Gamma - 1) + 0.5 * DatFace * velocity_left.L2Square();
 
-                        Flux[i][0][k] = Vn_left * DatFace * curEdge.area();
-                        Flux[i][1][k] = Vn_left * (rhoEatFace + PatFace) * curEdge.area();
+                        Flux[i][0+d_NEQU*k] = Vn_left * DatFace * curEdge.area();
+                        Flux[i][1+d_NEQU*k] = Vn_left * (rhoEatFace + PatFace) * curEdge.area();
                         for (int l = 0; l < d_dim; l++)
                         {
-                            Flux[i][l + 2][k] = (Vn_left * DatFace * velocity_left[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
+                            Flux[i][l + 2+d_NEQU*k] = (Vn_left * DatFace * velocity_left[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
                         }
                     }
                     else if (Sr < 0.0)
                     {
-                        double DatFace = UR[i][0][k];
-                        double PatFace = UR[i][1][k];
+                        double DatFace = UR[i][0+d_NEQU*k];
+                        double PatFace = UR[i][1+d_NEQU*k];
                         double rhoEatFace = PatFace / (Gamma - 1) + 0.5 * DatFace * velocity_righ.L2Square();
 
-                        Flux[i][0][k] = Vn_righ * DatFace * curEdge.area();
-                        Flux[i][1][k] = Vn_righ * (rhoEatFace + PatFace) * curEdge.area();
+                        Flux[i][0+d_NEQU*k] = Vn_righ * DatFace * curEdge.area();
+                        Flux[i][1+d_NEQU*k] = Vn_righ * (rhoEatFace + PatFace) * curEdge.area();
                         for (int l = 0; l < d_dim; l++)
                         {
-                            Flux[i][l + 2][k] = (Vn_righ * DatFace * velocity_righ[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
+                            Flux[i][l + 2+d_NEQU*k] = (Vn_righ * DatFace * velocity_righ[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
                         }
                     }
                     else // Between SM and SR
@@ -156,17 +156,17 @@ public:
                             velocity_ref = velocity_left;
                         }
                         double rhoE_ref = pressure_ref / (Gamma - 1) + 0.5 * density_ref * velocity_ref.L2Square();
-                        Flux[i][0][k] = (SRef - Vn_ref) * density_ref / (SRef - Sm);
-                        Flux[i][1][k] = ((SRef - Vn_ref) * rhoE_ref - pressure_ref * Vn_ref + p_star * Sm) / (SRef - Sm);
+                        Flux[i][0+d_NEQU*k] = (SRef - Vn_ref) * density_ref / (SRef - Sm);
+                        Flux[i][1+d_NEQU*k] = ((SRef - Vn_ref) * rhoE_ref - pressure_ref * Vn_ref + p_star * Sm) / (SRef - Sm);
                         for (int l = 0; l < d_dim; l++)
                         {
-                            Flux[i][l + 2][k] = ((SRef - Vn_ref) * density_ref * velocity_ref[l] + (p_star - pressure_ref) * curEdge.normal_vector()[l]) / (SRef - Sm);
+                            Flux[i][l + 2+d_NEQU*k] = ((SRef - Vn_ref) * density_ref * velocity_ref[l] + (p_star - pressure_ref) * curEdge.normal_vector()[l]) / (SRef - Sm);
                         }
-                        Flux[i][0][k] = Flux[i][0][k] * Sm * curEdge.area();
-                        Flux[i][1][k] = (Flux[i][1][k] + p_star) * Sm * curEdge.area();
+                        Flux[i][0+d_NEQU*k] = Flux[i][0+d_NEQU*k] * Sm * curEdge.area();
+                        Flux[i][1+d_NEQU*k] = (Flux[i][1+d_NEQU*k] + p_star) * Sm * curEdge.area();
                         for (int l = 0; l < d_dim; l++)
                         {
-                            Flux[i][l + 2][k] = (Flux[i][l + 2][k] * Sm + p_star * curEdge.normal_vector()[l]) * curEdge.area();
+                            Flux[i][l + 2+d_NEQU*k] = (Flux[i][l + 2+d_NEQU*k] * Sm + p_star * curEdge.normal_vector()[l]) * curEdge.area();
                         }
                     }
                 }

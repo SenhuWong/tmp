@@ -31,8 +31,8 @@ Vankatakrishnan_Limiter::~Vankatakrishnan_Limiter()
 
 void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
 {
-    double ***UL = d_hder_strategy->getUL();
-    double ***UR = d_hder_strategy->getUR();
+    double **UL = d_hder_strategy->getUL();
+    double **UR = d_hder_strategy->getUR();
     //  FIrst get Umax and Umin
     double **U = d_hder_strategy->getU();
 
@@ -69,7 +69,7 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
             }
         }
     }
-    GeomElements::vector3d<2, double> ***grad = d_hder_strategy->getGradient();
+    GeomElements::vector3d<2, double> **grad = d_hder_strategy->getGradient();
     for (int i = 0; i < d_nmesh; i++)
     {
         auto &curBlk = d_hder->blk2D[i];
@@ -85,8 +85,8 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
                 double result_limit;
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    double delta2 = grad[i][j][lc].dot_product(leftVec);
-                    UL[i][j][k] = delta2; // The left increment.
+                    double delta2 = grad[i][j+d_NEQU*lc].dot_product(leftVec);
+                    UL[i][j+d_NEQU*k] = delta2; // The left increment.
                     double delta1_max = Umax[i][j+d_NEQU*lc];
                     double delta1_min = Umin[i][j+d_NEQU*lc];
                     if (delta2 > 0)
@@ -115,8 +115,8 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
                 double result_limit;
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    double delta2 = grad[i][j][rc].dot_product(rightVec);
-                    UR[i][j][k] = delta2;
+                    double delta2 = grad[i][j+d_NEQU*rc].dot_product(rightVec);
+                    UR[i][j+d_NEQU*k] = delta2;
                     double delta1_max = Umax[i][j+d_NEQU*rc];
                     double delta1_min = Umin[i][j+d_NEQU*rc];
                     if (delta2 > 0)

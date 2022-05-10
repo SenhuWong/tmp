@@ -61,15 +61,15 @@ private:
 
     // Variables in CELLS  [blk][][cell]
     double **U = NULL; // Conservatives
-    GeomElements::vector3d<2, double> ***gradU = NULL;
-    double ***UL = NULL;
-    double ***UR = NULL;
+    GeomElements::vector3d<2, double> **gradU = NULL;
+    double ** UL = NULL;
+    double ** UR = NULL;
     double ** Residual = NULL; // Sum of edge's fluxes
     double **Spectrum_cell = NULL;
 
     // Variables in EDGES  [equ][blk][edge]
-    double *** U_edge = NULL;
-    double ***Flux_edge = NULL;
+    double ** U_edge = NULL;
+    double ** Flux_edge = NULL;
     double **Spectrum_edge = NULL;
 
     // Used for storing Maximum and minimum neighbours for limiter
@@ -147,22 +147,22 @@ public:
         return U;
     }
 
-    inline GeomElements::vector3d<2, double> ***getGradient()
+    inline GeomElements::vector3d<2, double> **getGradient()
     {
         return gradU;
     }
 
-    inline double ***getUL()
+    inline double **getUL()
     {
         return UL;
     }
 
-    inline double ***getUR()
+    inline double **getUR()
     {
         return UR;
     }
 
-    inline double ***getFluxEdge()
+    inline double **getFluxEdge()
     {
         return Flux_edge;
     }

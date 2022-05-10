@@ -99,16 +99,16 @@ void Euler2D::registerTopology()
     // Initialize Conservative Variables
     U = new double *[d_nmesh];
     // Update Edge Variable
-    U_edge = new double **[d_nmesh];
+    U_edge = new double *[d_nmesh];
     // With Edge Variables compute gradient
-    gradU = new GeomElements::vector3d<2, double> **[d_nmesh];
+    gradU = new GeomElements::vector3d<2, double> *[d_nmesh];
     Spectrum_cell = new double *[d_nmesh];
     // Compute left and right value of Conservative Variables
-    UL = new double **[d_nmesh];
-    UR = new double **[d_nmesh];
+    UL = new double *[d_nmesh];
+    UR = new double *[d_nmesh];
     Spectrum_edge = new double *[d_nmesh];
     // Compute flux and fluxSum
-    Flux_edge = new double **[d_nmesh];
+    Flux_edge = new double *[d_nmesh];
     Residual = new double *[d_nmesh];
 
     // Compute Local dt
@@ -128,26 +128,15 @@ void Euler2D::registerTopology()
     {
         U[i] = new double [d_NEQU*d_hder->nCells(i)];
         Residual[i] = new double [d_NEQU*d_hder->nCells(i)];
-        gradU[i] = new GeomElements::vector3d<2, double> *[d_NEQU];
+        gradU[i] = new GeomElements::vector3d<2, double> [d_NEQU*d_hder->nCells(i)];
         Spectrum_cell[i] = new double[d_hder->nCells(i)];
 
-        U_edge[i] = new double *[d_NEQU];
-        UL[i] = new double *[d_NEQU];
-        UR[i] = new double *[d_NEQU];
+        U_edge[i] = new double [d_NEQU*d_hder->nEdges(i)];
+        UL[i] = new double [d_NEQU*d_hder->nEdges(i)];
+        UR[i] = new double [d_NEQU*d_hder->nEdges(i)];
         Spectrum_edge[i] = new double[d_hder->nEdges(i)];
 
-        Flux_edge[i] = new double *[d_NEQU];
-        for (int j = 0; j < d_NEQU; j++)
-        {
-            // U[i][j] = new double[d_hder->nCells(i)];
-            // Residual[i][j] = new double[d_hder->nCells(i)];
-            gradU[i][j] = new GeomElements::vector3d<2, double>[d_hder->nCells(i)];
-            U_edge[i][j] = new double[d_hder->nEdges(i)];
-            UL[i][j] = new double[d_hder->nEdges(i)];
-            UR[i][j] = new double[d_hder->nEdges(i)];
-
-            Flux_edge[i][j] = new double[d_hder->nEdges(i)];
-        }
+        Flux_edge[i] = new double [d_NEQU*d_hder->nEdges(i)];
     }
 }
 
@@ -656,7 +645,7 @@ void Euler2D::ReconstructionInitial()
         {
             for (int k = 0; k < d_hder->nCells(i); k++)
             {
-                gradU[i][j][k].reset();
+                gradU[i][j+d_NEQU*k].reset();
             }
         }
     }
@@ -705,7 +694,7 @@ void Euler2D::updateEdgeValues()
             {
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    U_edge[i][j][k] = (U[i][j+d_NEQU*lC] + U[i][j+d_NEQU*rC]) / 2;
+                    U_edge[i][j+d_NEQU*k] = (U[i][j+d_NEQU*lC] + U[i][j+d_NEQU*rC]) / 2;
                 }
             }
             else if (rC == GeomElements::edge3d<2>::BoundaryType::WALL) // Wall
@@ -719,10 +708,10 @@ void Euler2D::updateEdgeValues()
                 {
                     throw std::runtime_error("Something wrong with Vector computation\n");
                 }
-                U_edge[i][0][k] = U[i][0+d_NEQU*lC];
-                U_edge[i][1][k] = U[i][1+d_NEQU*lC];
-                U_edge[i][2][k] = tangenVelocityLeft[0];
-                U_edge[i][3][k] = tangenVelocityLeft[1];
+                U_edge[i][0+d_NEQU*k] = U[i][0+d_NEQU*lC];
+                U_edge[i][1+d_NEQU*k] = U[i][1+d_NEQU*lC];
+                U_edge[i][2+d_NEQU*k] = tangenVelocityLeft[0];
+                U_edge[i][3+d_NEQU*k] = tangenVelocityLeft[1];
             }
             else if (rC == GeomElements::edge3d<2>::BoundaryType::FARFIELD) // Far field
             {
@@ -756,10 +745,10 @@ void Euler2D::updateEdgeValues()
                         //   s should equal to Soo
                         double Sb = (p_left / pow(rho_left, Gamma));
                         GeomElements::vector3d<2, double> EdgeVelocity = tangenVelocityLeft + normalVec * Vnb;
-                        U_edge[i][0][k] = pow((Cb * Cb / (Gamma * Sb)), (1.0 / (Gamma - 1)));
-                        U_edge[i][1][k] = U_edge[i][0][k] * Cb * Cb / Gamma;
-                        U_edge[i][2][k] = EdgeVelocity[0];
-                        U_edge[i][3][k] = EdgeVelocity[1];
+                        U_edge[i][0+d_NEQU*k] = pow((Cb * Cb / (Gamma * Sb)), (1.0 / (Gamma - 1)));
+                        U_edge[i][1+d_NEQU*k] = U_edge[i][0+d_NEQU*k] * Cb * Cb / Gamma;
+                        U_edge[i][2+d_NEQU*k] = EdgeVelocity[0];
+                        U_edge[i][3+d_NEQU*k] = EdgeVelocity[1];
                     }
                     else
                     {
@@ -767,27 +756,27 @@ void Euler2D::updateEdgeValues()
                         // double Cb = (normalVelocityComponentRight - normalVelocityComponentLeft + 2 * (sqrt(Gamma * p_left / rho_left) + fsnd_soundSpeed) / (Gamma - 1)) * (Gamma - 1) / 4;
                         double Sb = (fsnd_pressure / pow(fsnd_density, Gamma));
                         GeomElements::vector3d<2, double> Edgevelocity = tangenVelocityRight + normalVec * Vnb;
-                        U_edge[i][0][k] = pow((Cb * Cb / (Gamma * Sb)), (1.0 / (Gamma - 1)));
-                        U_edge[i][1][k] = U_edge[i][0][k] * Cb * Cb / Gamma;
-                        U_edge[i][2][k] = Edgevelocity[0];
-                        U_edge[i][3][k] = Edgevelocity[1];
+                        U_edge[i][0+d_NEQU*k] = pow((Cb * Cb / (Gamma * Sb)), (1.0 / (Gamma - 1)));
+                        U_edge[i][1+d_NEQU*k] = U_edge[i][0+d_NEQU*k] * Cb * Cb / Gamma;
+                        U_edge[i][2+d_NEQU*k] = Edgevelocity[0];
+                        U_edge[i][3+d_NEQU*k] = Edgevelocity[1];
                     }
                 }
                 else
                 {
                     if (normalVelocityComponentRight >= 0)
                     {
-                        U_edge[i][0][k] = U[i][0+d_NEQU*lC];
-                        U_edge[i][1][k] = U[i][1+d_NEQU*lC];
-                        U_edge[i][2][k] = U[i][2+d_NEQU*lC];
-                        U_edge[i][3][k] = U[i][3+d_NEQU*lC];
+                        U_edge[i][0+d_NEQU*k] = U[i][0+d_NEQU*lC];
+                        U_edge[i][1+d_NEQU*k] = U[i][1+d_NEQU*lC];
+                        U_edge[i][2+d_NEQU*k] = U[i][2+d_NEQU*lC];
+                        U_edge[i][3+d_NEQU*k] = U[i][3+d_NEQU*lC];
                     }
                     else
                     {
-                        U_edge[i][0][k] = fsnd_density;
-                        U_edge[i][1][k] = fsnd_pressure;
-                        U_edge[i][2][k] = fsnd_velocity_components[0];
-                        U_edge[i][3][k] = fsnd_velocity_components[1];
+                        U_edge[i][0+d_NEQU*k] = fsnd_density;
+                        U_edge[i][1+d_NEQU*k] = fsnd_pressure;
+                        U_edge[i][2+d_NEQU*k] = fsnd_velocity_components[0];
+                        U_edge[i][3+d_NEQU*k] = fsnd_velocity_components[1];
                     }
                 }
             }
@@ -813,13 +802,13 @@ void Euler2D::solveGradient()
             int rC = curEdge.rCInd();
             for (int j = 0; j < d_NEQU; j++)
             {
-                gradU[i][j][lC] = gradU[i][j][lC] + curEdge.normal_vector() * (curEdge.area() * U_edge[i][j][k]);
+                gradU[i][j+d_NEQU*lC] = gradU[i][j+d_NEQU*lC] + curEdge.normal_vector() * (curEdge.area() * U_edge[i][j+d_NEQU*k]);
             }
             if (rC >= 0)
             {
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    gradU[i][j][rC] = gradU[i][j][rC] - curEdge.normal_vector() * (curEdge.area() * U_edge[i][j][k]);
+                    gradU[i][j+d_NEQU*rC] = gradU[i][j+d_NEQU*rC] - curEdge.normal_vector() * (curEdge.area() * U_edge[i][j+d_NEQU*k]);
                 }
             }
         }
@@ -828,7 +817,7 @@ void Euler2D::solveGradient()
             auto &curCell = curBlk.d_localCells[k];
             for (int j = 0; j < d_NEQU; j++)
             {
-                gradU[i][j][k] = gradU[i][j][k] / curCell.volume();
+                gradU[i][j+d_NEQU*k] = gradU[i][j+d_NEQU*k] / curCell.volume();
             }
         }
     }
@@ -843,9 +832,9 @@ void Euler2D::solveSpectralRadius()
         for (int k = 0; k < d_hder->nEdges(i); k++)
         {
             auto &curEdge = curBlk.d_localEdges[k];
-            velocity_edge[0] = U_edge[i][2][k];
-            velocity_edge[1] = U_edge[i][3][k];
-            double c = sqrt(Gamma * U_edge[i][1][k] / U_edge[i][0][k]);
+            velocity_edge[0] = U_edge[i][2+d_NEQU*k];
+            velocity_edge[1] = U_edge[i][3+d_NEQU*k];
+            double c = sqrt(Gamma * U_edge[i][1+d_NEQU*k] / U_edge[i][0+d_NEQU*k]);
             double Vn = velocity_edge.dot_product(curEdge.normal_vector());
             int lC = curEdge.lCInd();
             int rC = curEdge.rCInd();
@@ -887,11 +876,11 @@ void Euler2D::updateEdgeLeftRightValues()
             {
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    UL[i][j][k] = UL[i][j][k] * d_limiter->getLimiter(i, j, lc) + U[i][j+d_NEQU*lc];
+                    UL[i][j+d_NEQU*k] = UL[i][j+d_NEQU*k] * d_limiter->getLimiter(i, j, lc) + U[i][j+d_NEQU*lc];
                 }
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    UR[i][j][k] = UR[i][j][k] * d_limiter->getLimiter(i, j, rc) + U[i][j+d_NEQU*rc];
+                    UR[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] * d_limiter->getLimiter(i, j, rc) + U[i][j+d_NEQU*rc];
                 }
             }
             else
@@ -904,14 +893,14 @@ void Euler2D::updateEdgeLeftRightValues()
                 {
                     for (int j = 0; j < d_NEQU; j++)
                     {
-                        UL[i][j][k] = UR[i][j][k] = U[i][j+d_NEQU*lc];
+                        UL[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] = U[i][j+d_NEQU*lc];
                     }
                 }
                 else if (rc == GeomElements::edge3d<2>::BoundaryType::FARFIELD) // Far_field, set to be the face variables
                 {
                     for (int j = 0; j < d_NEQU; j++)
                     {
-                        UL[i][j][k] = UR[i][j][k] = U_edge[i][j][k];
+                        UL[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] = U_edge[i][j+d_NEQU*k];
                     }
                 }
                 else
@@ -974,7 +963,7 @@ void Euler2D::updateFlux()
             {
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    Residual[i][j+d_NEQU*lc] += Flux_edge[i][j][k];
+                    Residual[i][j+d_NEQU*lc] += Flux_edge[i][j+d_NEQU*k];
                 }
             }
             else
@@ -986,7 +975,7 @@ void Euler2D::updateFlux()
             {
                 for (int j = 0; j < d_NEQU; j++)
                 {
-                    Residual[i][j+d_NEQU*rc] -= Flux_edge[i][j][k];
+                    Residual[i][j+d_NEQU*rc] -= Flux_edge[i][j+d_NEQU*k];
                 }
             }
         }
