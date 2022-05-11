@@ -182,7 +182,7 @@ void UnstructTopologyHolder::writeGridMetaData(const std::string &filename, int 
     std::string localEdgeFilename = filename + "_edge_" + std::to_string(meshTag) + std::to_string(curproc);
     fout.open(localEdgeFilename);
     GeomElements::edge3d<2>::bindPoints(blk2D[meshTag].d_localPoints);
-    for (int i = 0; i < blk2D[meshTag].d_nEs; i++)
+    for (int i = 0; i < blk2D[meshTag].nEdges(); i++)
     {
         fout << "Edge " << i << '\n';
         for (int j = 0; j < blk2D[meshTag].d_localEdges[i].size(); j++)
@@ -204,7 +204,7 @@ void UnstructTopologyHolder::writeGridMetaData(const std::string &filename, int 
 
     fout.open(localCellFilename);
     GeomElements::cell3d<2>::bindPoints(blk2D[meshTag].d_localPoints);
-    for (int i = 0; i < blk2D[meshTag].d_nCs; i++)
+    for (int i = 0; i < blk2D[meshTag].nCells(); i++)
     {
         fout << "Cell " << i << '\n';
         for (int j = 0; j < blk2D[meshTag].d_localCells[i].size(); j++)

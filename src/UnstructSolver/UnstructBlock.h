@@ -6,51 +6,259 @@
 #include <set>
 #include <fstream>
 
-class UnstructBlock2D
+class UnstructBlock
 {
-public:
-    // Geometric Elements;
+protected:
     int d_nPs = 0;
     int d_nCs = 0;
     int d_nEs = 0;
+    int d_nFluxedEs = 0;//This is for debugging at computation of Flux
+    // Pointers to local point,edge and cell should be implemented at subclasses.
 
-    int d_nFluxedEs = 0;
 
-
-    GeomElements::point3d<2> *d_localPoints = NULL;
-    GeomElements::cell3d<2> *d_localCells = NULL;
-    GeomElements::edge3d<2> *d_localEdges = NULL;
-    // Communication Cells;
-    // CommunicationProcs on this mesh only is documented at read time.
-    // proc id will be modified when communication proc of all meshes is considered.
+    // Communication related Procs for this mesh only is documented at read time.
+    // proc id will be reset when communication proc of all meshes is formed.
     int global_nRelatedProcs = 0;
     int *nsendCellEachProc = NULL;
     int *nrecvCellEachProc = NULL;
 
-    // The new added near and remote cell info.
-    // int *nnearSendCellEachProc = NULL;
-    // int *nnearRecvCellEachProc = NULL;
-    // int nnearSend = 0;
-    // int *nearSendCellInds = NULL;
-    // int nnearRecv = 0;
-    // int *nearRecvCellInds = NULL;
-    
-    CommunicationLayerFilter * d_sendRemote;
-    CommunicationLayerFilter * d_sendNear;
-    CommunicationLayerFilter * d_recvRemote;
-    CommunicationLayerFilter * d_recvNear;
-
-    // int *nremoteSendCellEachProc = NULL;
-    // int *nremoteRecvCellEachProc = NULL;
-    // int nremoteSend = 0;
-    // int *remoteSendCellInds = NULL;
-    // int nremoteRecv = 0;
-    // int *remoteRecvCellInds = NULL;
-
+     //All communication cells.
     std::vector<CommunicationCell> d_to_send;
     std::vector<CommunicationCell> d_to_recv;
+public:
     std::map<int, int> *d_proc2Index = NULL; // From proc to local index(after calling reset, From proc to global index)
     std::map<int, int> *d_index2Proc = NULL; // From local index to proc
+
+    //Filters to allow nearCell's sendRecv and remoteCell's sendRecv.
+    CommunicationLayerFilter * d_sendRemote = NULL;
+    CommunicationLayerFilter * d_sendNear = NULL;
+    CommunicationLayerFilter * d_recvRemote = NULL;
+    CommunicationLayerFilter * d_recvNear = NULL;
+
+   
+    
+    
+public:
+    int nPoints(){return d_nPs;}
+    int nCells(){return d_nCs;}
+    int nEdges(){return d_nEs;}
+    std::vector<CommunicationCell>& sendCommCells()
+    {
+        return d_to_send;
+    }
+    std::vector<CommunicationCell>& recvCommCells()
+    {
+        return d_to_recv;
+    }
+
+    UnstructBlock()
+    {
+        d_sendRemote = new CommunicationLayerFilter[1];
+        d_recvRemote = new CommunicationLayerFilter[1];
+        d_sendNear = new CommunicationLayerFilter[1];
+        d_recvNear = new CommunicationLayerFilter[1];
+    }
+    ~UnstructBlock()
+    {
+        //Clear pointers set from outside sources(usually the templated ones).
+        clear_external();
+        //Clear pointers allocated in constructor.
+        if (d_sendRemote){delete[] d_sendRemote;}
+        if (d_recvRemote){delete[] d_recvRemote;}
+        if (d_sendNear){delete[] d_sendNear;}
+        if (d_recvNear){delete[] d_recvNear;}
+        if (nsendCellEachProc){delete[] nsendCellEachProc;}
+        if (nrecvCellEachProc){delete[] nrecvCellEachProc;}
+    }
+    virtual void clear_external()
+    {
+
+    }
+    virtual void computeEdgeCellMetaData() = 0;
+
+
+    virtual void setLocalStructure(void* localP,
+                           void* localC,
+                           void* localE,
+                           int nlocalP,
+                           int nlocalC,
+                           int nlocalE,
+                           int nFluxedE) = 0;
+
+    void setLocalCommunication(std::map<int, int> *proc2index, std::map<int, int> *index2Proc)
+    {
+        d_proc2Index = proc2index;
+        d_index2Proc = index2Proc;
+    }
+    void pushSendCell(const CommunicationCell &sendC)
+    {
+        d_to_send.push_back(sendC);
+    }
+
+    void pushRecvCell(const CommunicationCell &recvC)
+    {
+        d_to_recv.push_back(recvC);
+    }
+    // According to the given global view of realtedProcs, change the proc2Ind and count how many cells there is on each ind.
+    void resetProcId(const std::vector<int> &aggregated_relatedProcs, int level_splitter)
+    {
+        // The proc to ind is changed to be the globalized ind.
+        global_nRelatedProcs = aggregated_relatedProcs.size();
+        // Make the map of global proc id to index.
+        int ind = 0;
+        for (auto iter = aggregated_relatedProcs.begin(); iter < aggregated_relatedProcs.end(); iter++)
+        {
+            auto to_search = d_proc2Index->find(*iter);
+            if (to_search != d_proc2Index->end())
+            {
+                (*d_proc2Index)[to_search->first] = to_search->second + ind;
+            }
+            else
+            {
+                ind++;
+            }
+        }
+        // Apply that map to each CommCell.
+        for (auto iter = d_to_send.begin(); iter != d_to_send.end(); iter++)
+        {
+            int local_ind = iter->d_remoteProc;
+            int global_ind = (*d_proc2Index)[(*d_index2Proc)[local_ind]];
+            iter->d_remoteProc = global_ind;
+        }
+        for (auto iter = d_to_recv.begin(); iter != d_to_recv.end(); iter++)
+        {
+            int local_ind = iter->d_remoteProc;
+            int global_ind = (*d_proc2Index)[(*d_index2Proc)[local_ind]];
+            iter->d_remoteProc = global_ind;
+        }
+
+        if (nsendCellEachProc){delete[] nsendCellEachProc;}
+        if (nrecvCellEachProc){delete[] nrecvCellEachProc;}
+        
+        nsendCellEachProc = new int[global_nRelatedProcs];
+        nrecvCellEachProc = new int[global_nRelatedProcs];
+        for (int i = 0; i < global_nRelatedProcs; i++)
+        {
+            nsendCellEachProc[i] = 0;
+            nrecvCellEachProc[i] = 0;
+        }
+        
+        d_sendRemote->setnProc(global_nRelatedProcs);
+        d_recvRemote->setnProc(global_nRelatedProcs);
+        d_sendNear->setnProc(global_nRelatedProcs);
+        d_recvNear->setnProc(global_nRelatedProcs);
+        int splitting_level = level_splitter;
+        // nnearRecv = 0;
+        // nremoteRecv = 0;
+        for (auto iter = d_to_recv.begin(); iter != d_to_recv.end(); iter++)
+        {
+            if(iter->d_layer_level>splitting_level)
+            {
+                d_recvRemote->pushCellInd(iter-d_to_recv.begin());
+                d_recvRemote->nCellCountPlus(iter->d_remoteProc);
+            }
+            else
+            {
+                d_recvNear->pushCellInd(iter-d_to_recv.begin());
+                d_recvNear->nCellCountPlus(iter->d_remoteProc);
+            }
+            ++nrecvCellEachProc[iter->d_remoteProc];
+        }
+
+        for (auto iter = d_to_send.begin(); iter != d_to_send.end(); iter++)
+        {
+            if(iter->d_layer_level>splitting_level)
+            {
+                d_sendRemote->pushCellInd(iter-d_to_send.begin());
+                d_sendRemote->nCellCountPlus(iter->d_remoteProc);
+                
+            }
+            else
+            {
+                d_sendNear->pushCellInd(iter - d_to_send.begin());
+                d_sendNear->nCellCountPlus(iter->d_remoteProc);
+            }
+            ++nsendCellEachProc[iter->d_remoteProc];
+        }
+    }
+    
+    int getNRemoteSendCell()
+    {
+        return d_sendRemote->layerSize();
+    }
+
+    int getNNearSendCell()
+    {
+        return d_sendNear->layerSize();
+    }
+
+    int getNRemoteRecvCell()
+    {
+        return d_recvRemote->layerSize();
+    }
+
+    int getNNearRecvCell()
+    {
+        return d_recvNear->layerSize();
+    }
+
+    int getNSendCellOnProcInd(int global_id)
+    {
+        return nsendCellEachProc[global_id];
+    }
+    int getNRecvCellOnProcInd(int global_id)
+    {
+        return nrecvCellEachProc[global_id];
+    }
+    int getNRemoteSendCellOnProcInd(int global_id)
+    {
+        return d_sendRemote->getCellCountOnProc(global_id);
+    }
+    int getNRemoteRecvCellOnProcInd(int global_id)
+    {
+        return d_recvRemote->getCellCountOnProc(global_id);
+    }
+    int getNNearSendCellOnProcInd(int global_id)
+    {
+        return d_sendNear->getCellCountOnProc(global_id);
+    }
+    int getNNearRecvCellOnProcInd(int global_id)
+    {
+        return d_recvNear->getCellCountOnProc(global_id);
+    }
+
+
+
+    //This is used only for output and therefore don't care about performance
+
+    std::set<int,std::less<int>>* getRecvIndSet()
+    {
+        std::set<int,std::less<int>>* recvInds =  new std::set<int,std::less<int>>[1];
+        for(auto iter = d_to_recv.begin();iter!=d_to_recv.end();iter++)
+        {
+            recvInds->insert(iter->d_localId);
+        }
+        return recvInds;
+    }
+
+    std::vector<CommunicationCell> &getRecvCells()
+    {
+        return d_to_recv;
+    }
+    std::vector<CommunicationCell> &getSendCells()
+    {
+        return d_to_send;
+    }
+};
+
+template<int ndim>
+class UnstructBlock2D: public UnstructBlock
+{
+public:
+    GeomElements::point3d<ndim> *d_localPoints = NULL;
+    GeomElements::cell3d<ndim> *d_localCells = NULL;
+    GeomElements::edge3d<ndim> *d_localEdges = NULL;
+
     //std::vector<int> localInd2AggregatedInd;
     void write_grd(const std::string &filename, int meshtag, int cur_proc)
     {
@@ -181,11 +389,11 @@ public:
             auto &curEdge = d_localEdges[i];
             int lc = d_localEdges[i].lCInd();
             int rc = d_localEdges[i].rCInd();
-            if (rc == GeomElements::edge3d<2>::BoundaryType::WALL) // Wall
+            if (rc == GeomElements::edge3d<ndim>::BoundaryType::WALL) // Wall
             {
                 flag[lc] += -2;
             }
-            else if (rc == GeomElements::edge3d<2>::BoundaryType::FARFIELD)
+            else if (rc == GeomElements::edge3d<ndim>::BoundaryType::FARFIELD)
             {
                 flag[lc] += -3;
             }
@@ -229,7 +437,7 @@ public:
         delete[] flag;
     }
     
-    void clear_external()
+    void clear_external()//Clear pointers from UnstructFeeder.
     {
         if (d_localPoints)
         {
@@ -246,14 +454,6 @@ public:
             delete[] d_localEdges;
             d_localEdges = NULL;
         }
-        if (nsendCellEachProc)
-        {
-            delete[] nsendCellEachProc;
-        }
-        if (nrecvCellEachProc)
-        {
-            delete[] nrecvCellEachProc;
-        }
         if (!d_to_send.empty())
         {
             d_to_send.clear();
@@ -262,8 +462,16 @@ public:
         {
             d_to_recv.clear();
         }
-        
-        
+        if (d_proc2Index)
+        {
+            delete[] d_proc2Index;
+            d_proc2Index = NULL;
+        }
+        if (d_index2Proc)
+        {
+            delete[] d_index2Proc;
+            d_index2Proc = NULL;
+        }
     }
     UnstructBlock2D()
     {
@@ -281,6 +489,8 @@ public:
         if (d_recvRemote){delete[] d_recvRemote;}
         if (d_sendNear){delete[] d_sendNear;}
         if (d_recvNear){delete[] d_recvNear;}
+        if (nsendCellEachProc){delete[] nsendCellEachProc;}
+        if (nrecvCellEachProc){delete[] nrecvCellEachProc;}
     }
     
     void computeEdgeCellMetaData()
@@ -299,13 +509,13 @@ public:
 
     void bindCurPoints()
     {
-        GeomElements::cell3d<2>::bindPoints(d_localPoints);
-        GeomElements::edge3d<2>::bindPoints(d_localPoints);
+        GeomElements::cell3d<ndim>::bindPoints(d_localPoints);
+        GeomElements::edge3d<ndim>::bindPoints(d_localPoints);
     }
 
-    void setLocalStructure(GeomElements::point3d<2> *localP,
-                           GeomElements::cell3d<2> *localC,
-                           GeomElements::edge3d<2> *localE,
+    void setLocalStructure(void* localP,
+                           void* localC,
+                           void* localE,
                            int nlocalP,
                            int nlocalC,
                            int nlocalE,
@@ -329,198 +539,12 @@ public:
         d_nPs = nlocalP;
         d_nCs = nlocalC;
         d_nEs = nlocalE;
-        d_localPoints = localP;
-        d_localCells = localC;
-        d_localEdges = localE;
+        d_localPoints = (GeomElements::point3d<ndim>*) localP;
+        d_localCells = (GeomElements::cell3d<ndim>*) localC;
+        d_localEdges = (GeomElements::edge3d<ndim>*)localE;
         d_nFluxedEs = nFluxedE;
     }
 
-    void setLocalCommunication(std::map<int, int> *proc2index, std::map<int, int> *index2Proc)
-    {
-        d_proc2Index = proc2index;
-        d_index2Proc = index2Proc;
-    }
-    void pushSendCell(const CommunicationCell &sendC)
-    {
-        // std::cout<<"Send cell pushed\n";
-        d_to_send.push_back(sendC);
-    }
-
-    void pushRecvCell(const CommunicationCell &recvC)
-    {
-        std::cout << "Recv cell pushed\n";
-        d_to_recv.push_back(recvC);
-        std::cout << d_to_recv.size() << '\n';
-    }
-    // According to the given global view of realtedProcs, change the proc2Ind and count how many cells there is on each ind.
-    void resetProcId(const std::vector<int> &aggregated_relatedProcs, int level_splitter)
-    {
-        // The proc to ind is changed to be the globalized ind.
-        global_nRelatedProcs = aggregated_relatedProcs.size();
-        // Make the map of global proc id to index.
-        int ind = 0;
-        for (auto iter = aggregated_relatedProcs.begin(); iter < aggregated_relatedProcs.end(); iter++)
-        {
-            auto to_search = d_proc2Index->find(*iter);
-            if (to_search != d_proc2Index->end())
-            {
-                (*d_proc2Index)[to_search->first] = to_search->second + ind;
-            }
-            else
-            {
-                ind++;
-            }
-        }
-        // Apply that map to each CommCell.
-        for (auto iter = d_to_send.begin(); iter != d_to_send.end(); iter++)
-        {
-            int local_ind = iter->d_remoteProc;
-            int global_ind = (*d_proc2Index)[(*d_index2Proc)[local_ind]];
-            iter->d_remoteProc = global_ind;
-        }
-        for (auto iter = d_to_recv.begin(); iter != d_to_recv.end(); iter++)
-        {
-            int local_ind = iter->d_remoteProc;
-            int global_ind = (*d_proc2Index)[(*d_index2Proc)[local_ind]];
-            iter->d_remoteProc = global_ind;
-        }
-
-        if (nsendCellEachProc){delete[] nsendCellEachProc;}
-        if (nrecvCellEachProc){delete[] nrecvCellEachProc;}
-        
-        nsendCellEachProc = new int[global_nRelatedProcs];
-        nrecvCellEachProc = new int[global_nRelatedProcs];
-        for (int i = 0; i < global_nRelatedProcs; i++)
-        {
-            nsendCellEachProc[i] = 0;
-            nrecvCellEachProc[i] = 0;
-        }
-        
-        d_sendRemote->setnProc(global_nRelatedProcs);
-        d_recvRemote->setnProc(global_nRelatedProcs);
-        d_sendNear->setnProc(global_nRelatedProcs);
-        d_recvNear->setnProc(global_nRelatedProcs);
-        int splitting_level = level_splitter;
-        // nnearRecv = 0;
-        // nremoteRecv = 0;
-        for (auto iter = d_to_recv.begin(); iter != d_to_recv.end(); iter++)
-        {
-            if(iter->d_layer_level>splitting_level)
-            {
-                d_recvRemote->pushCellInd(iter-d_to_recv.begin());
-                d_recvRemote->nCellCountPlus(iter->d_remoteProc);
-            }
-            else
-            {
-                d_recvNear->pushCellInd(iter-d_to_recv.begin());
-                d_recvNear->nCellCountPlus(iter->d_remoteProc);
-            }
-            ++nrecvCellEachProc[iter->d_remoteProc];
-        }
-
-        for (auto iter = d_to_send.begin(); iter != d_to_send.end(); iter++)
-        {
-            if(iter->d_layer_level>splitting_level)
-            {
-                d_sendRemote->pushCellInd(iter-d_to_send.begin());
-                d_sendRemote->nCellCountPlus(iter->d_remoteProc);
-                
-            }
-            else
-            {
-                d_sendNear->pushCellInd(iter - d_to_send.begin());
-                d_sendNear->nCellCountPlus(iter->d_remoteProc);
-            }
-            ++nsendCellEachProc[iter->d_remoteProc];
-        }
-    }
-    
-    int getNRemoteSendCell()
-    {
-        return d_sendRemote->layerSize();
-    }
-
-    int getNNearSendCell()
-    {
-        return d_sendNear->layerSize();
-    }
-
-    int getNRemoteRecvCell()
-    {
-        return d_recvRemote->layerSize();
-    }
-
-    int getNNearRecvCell()
-    {
-        return d_recvNear->layerSize();
-    }
-
-    int getNSendCellOnProcInd(int global_id)
-    {
-        return nsendCellEachProc[global_id];
-    }
-    int getNRecvCellOnProcInd(int global_id)
-    {
-        return nrecvCellEachProc[global_id];
-    }
-    int getNRemoteSendCellOnProcInd(int global_id)
-    {
-        return d_sendRemote->getCellCountOnProc(global_id);
-    }
-    int getNRemoteRecvCellOnProcInd(int global_id)
-    {
-        return d_recvRemote->getCellCountOnProc(global_id);
-    }
-    int getNNearSendCellOnProcInd(int global_id)
-    {
-        return d_sendNear->getCellCountOnProc(global_id);
-    }
-    int getNNearRecvCellOnProcInd(int global_id)
-    {
-        return d_recvNear->getCellCountOnProc(global_id);
-    }
-
-    //This is used only for output and therefore don't care about performance
-
-    std::set<int,std::less<int>>* getRecvIndSet()
-    {
-        std::set<int,std::less<int>>* recvInds =  new std::set<int,std::less<int>>[1];
-        for(auto iter = d_to_recv.begin();iter!=d_to_recv.end();iter++)
-        {
-            recvInds->insert(iter->d_localId);
-        }
-        return recvInds;
-    } 
-
-    
-
-    // std::vector<CommunicationCell>::iterator remoteRecvBegin(int cellid)
-    // {
-    //     return d_to_recv.begin() + cellid;
-    // }
-    // std::vector<CommunicationCell>::iterator remoteSendBegin(int cellid)
-    // {
-
-
-    // }
-    // std::vector<CommunicationCell>::iterator nearRecvBegin(int cellid)
-    // {
-
-    // }
-    // std::vector<CommunicationCell>::iterator nearSendBegin(int cellid)
-    // {
-
-    // }
-
-
-    std::vector<CommunicationCell> &getRecvCells()
-    {
-        return d_to_recv;
-    }
-    std::vector<CommunicationCell> &getSendCells()
-    {
-        return d_to_send;
-    }
 };
 
 class UnstructBlock3D

@@ -32,8 +32,8 @@ public:
 public:
     //Number of mesh with number of cells,edges and node on each mesh.
     
-    UnstructBlock2D* blk2D = NULL;
-    UnstructBlock3D* blk3D = NULL;
+    UnstructBlock2D<2>* blk2D = NULL;
+    UnstructBlock2D<3>* blk3D = NULL;
     //Find the aggregated related CommProcs;
     int** recvCell_ProcBlockPtr = NULL;
     int** sendCell_ProcBlockPtr = NULL;
@@ -52,7 +52,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_nPs;
+            return blk2D[blkid].nPoints();
         }
         else if(d_dim ==3)
         {
@@ -67,7 +67,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_nCs;
+            return blk2D[blkid].nCells();
         }
         else if(d_dim==3)
         {
@@ -83,7 +83,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_nEs;
+            return blk2D[blkid].nEdges();
         }
         else if(d_dim==3)
         {
@@ -158,44 +158,44 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_send.begin();
+            return blk2D[blkid].sendCommCells().begin();
         }
         else
         {
-            return blk2D[blkid].d_to_send.begin();
+            return blk2D[blkid].sendCommCells().begin();
         }
     }
     std::vector<CommunicationCell>::iterator sendEnd(int blkid)
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_send.end();
+            return blk2D[blkid].sendCommCells().end();
         }
         else
         {
-            return blk2D[blkid].d_to_send.end();
+            return blk2D[blkid].sendCommCells().end();
         }
     }
     std::vector<CommunicationCell>::iterator recvBegin(int blkid)
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_recv.begin();
+            return blk2D[blkid].recvCommCells().begin();
         }
         else
         {
-            return blk2D[blkid].d_to_recv.begin();
+            return blk2D[blkid].recvCommCells().begin();
         }
     }
     std::vector<CommunicationCell>::iterator recvEnd(int blkid)
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_recv.end();
+            return blk2D[blkid].recvCommCells().end();
         }
         else
         {
-            return blk2D[blkid].d_to_recv.end();
+            return blk2D[blkid].recvCommCells().end();
         }
     }
     
@@ -268,7 +268,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_send.begin() + remoteSendInd(blkid,cellId_filter);
+            return blk2D[blkid].sendCommCells().begin() + remoteSendInd(blkid,cellId_filter);
         }
     }
 
@@ -276,7 +276,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_recv.begin() + remoteRecvInd(blkid,cellId_filter);
+            return blk2D[blkid].recvCommCells().begin() + remoteRecvInd(blkid,cellId_filter);
         }
     }
 
@@ -284,7 +284,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_send.begin() + nearSendInd(blkid,cellId_filter);
+            return blk2D[blkid].sendCommCells().begin() + nearSendInd(blkid,cellId_filter);
         }
     }
 
@@ -292,7 +292,7 @@ public:
     {
         if(d_dim==2)
         {
-            return blk2D[blkid].d_to_recv.begin() + nearRecvInd(blkid,cellId_filter);
+            return blk2D[blkid].recvCommCells().begin() + nearRecvInd(blkid,cellId_filter);
         }
 
     }

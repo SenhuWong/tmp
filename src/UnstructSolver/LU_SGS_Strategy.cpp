@@ -121,24 +121,20 @@ void LUSGSStrategy::preprocessUpdate()
 
 void LUSGSStrategy::singleStep(int curStage)
 {
-    //preprocessUpdate();
     Update();
-    //postprocessUpdate();
-    //if(d_hder_strategy->cur_proc==-1)
-    //std::cout<<"FInishing singleStep?\n";
-
+    postprocessUpdate();
 }
 
 void LUSGSStrategy::singleStepSerial(int curStep)
 {
-    //preprocessUpdate();
     UpdateSerial();
-    //postprocessUpdate();
+    postprocessUpdate();
     
 }
 
 void LUSGSStrategy::postprocessUpdate()
 {
+    return;
     d_hder_strategy->cleaning(W_scratch);
 }
 

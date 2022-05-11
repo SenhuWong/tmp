@@ -603,7 +603,6 @@ void unstruct_main()
     MPI_Barrier(MPI_COMM_WORLD);
     rd->performCommunication();
     UnstructTopologyHolder* integrator = new UnstructTopologyHolder(rd);
-    // integrator->blk2D[0].writeEdge("FirstEdge",0,cur_proc);
     integrator->arrange_communication();
     MPI_Barrier(MPI_COMM_WORLD);
     integrator->write("Meta");

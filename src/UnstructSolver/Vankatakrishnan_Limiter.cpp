@@ -73,7 +73,7 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
     for (int i = 0; i < d_nmesh; i++)
     {
         auto &curBlk = d_hder->blk2D[i];
-        for (int k = 0; k < curBlk.d_nEs; k++)
+        for (int k = 0; k < curBlk.nEdges(); k++)
         {
             auto &curEdge = curBlk.d_localEdges[k];
             int lc = curEdge.lCInd();

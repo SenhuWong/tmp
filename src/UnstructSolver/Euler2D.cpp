@@ -287,8 +287,6 @@ void Euler2D::test_communication()
     // std::cout << "Sending flag correction\n";
     for (int i = 0; i < d_hder->d_nmesh; i++)
     {
-        // auto &cur_ub = d_hder->blk2D[i];
-        // std::cout<<"size of send cell is "<<d_hder->blk2D[i].d_to_recv.size()<<"on mesh "<<i<<" proc "<<cur_proc<<'\n';
         int temp_count = 0;
         int temp_validCount = 0;
         for (auto iter = d_hder->sendBegin(i); iter != d_hder->sendEnd(i); iter++)
@@ -324,7 +322,6 @@ void Euler2D::test_communication()
     // std::cout << '\n';
     for (int i = 0; i < d_hder->d_nmesh; i++)
     {
-        // auto& cur_ub = d_hder->blk2D[i];
         auto iter = d_hder->sendBegin(i); // cur_ub.d_to_send.begin();
         for (int j = 0; j < d_hder->relatedProcs.size(); j++)
         {
@@ -357,7 +354,6 @@ void Euler2D::test_communication()
     MPI_Waitall(d_hder->relatedProcs.size(), recvRequests.data(), recvStatus.data());
     for (int i = 0; i < d_hder->d_nmesh; i++)
     {
-        // auto& cur_ub = d_hder->blk2D[i];
         auto iter = d_hder->recvBegin(i);
         for (int j = 0; j < d_hder->relatedProcs.size(); j++)
         {
@@ -390,13 +386,8 @@ void Euler2D::test_partialcomm()
             testing_flag[i][j] = -1;
         }
     }
-    // std::cout << "Sending flag correction\n";
     for (int i = 0; i < d_hder->d_nmesh; i++)
     {
-        // auto &cur_ub = d_hder->blk2D[i];
-        // std::cout<<"size of send cell is "<<d_hder->blk2D[i].d_to_recv.size()<<"on mesh "<<i<<" proc "<<cur_proc<<'\n';
-        // int temp_count = 0;
-        // int temp_validCount = 0;
         for(int j = 0;j<d_hder->nRemoteSend(i);j++)
         {
             auto iter = d_hder->remoteSend(i,j);
@@ -684,7 +675,7 @@ void Euler2D::updateEdgeValues()
     for (int i = 0; i < d_nmesh; i++)
     {
         auto &curBlk = d_hder->blk2D[i];
-        for (int k = 0; k < curBlk.d_nEs; k++)
+        for (int k = 0; k < curBlk.nEdges(); k++)
         {
             auto &curEdge = curBlk.d_localEdges[k];
             int lC = curEdge.lCInd();
@@ -865,7 +856,7 @@ void Euler2D::updateEdgeLeftRightValues()
     for (int i = 0; i < d_nmesh; i++)
     {
         auto &curBlk = d_hder->blk2D[i];
-        for (int k = 0; k < curBlk.d_nEs; k++)
+        for (int k = 0; k < curBlk.nEdges(); k++)
         {
 
             auto &curEdge = curBlk.d_localEdges[k];
@@ -1023,7 +1014,6 @@ void Euler2D::withinBlockCommunication()
 
     for (int i = 0; i < d_hder->d_nmesh; i++)
     {
-        // auto& cur_ub = d_hder->blk2D[i];
         auto iter = d_hder->recvBegin(i);
         for (int j = 0; j < d_hder->relatedProcs.size(); j++)
         {
@@ -1288,6 +1278,7 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
             }
         }
     }
+    delete[] recvCellSet;
     int nlocalWall = raw_data.size()/4;
     int* nEachLocalWall = new int[num_proc+1];
 

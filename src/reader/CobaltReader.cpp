@@ -341,8 +341,8 @@ void CobaltReader::selectReadForUnstruct()
 		std::ofstream recorder;
 		recorder.open(localFilename);
 		auto &cur_bi = bis[m];
-		UnstructBlock2D *cur_ub2D;
-		UnstructBlock3D *cur_ub3D;
+		UnstructBlock2D<2> *cur_ub2D;
+		UnstructBlock2D<3> *cur_ub3D;
 		if (d_dim == 2)
 		{
 			cur_ub2D = &(UBs2[m]);
@@ -575,7 +575,7 @@ void CobaltReader::selectReadForUnstruct()
 					if (buffered_flag[i] > 0) // Is a buffered cell,we could compute its local id and globalid(stored in remote id for now) and proc for sending
 					{
 						int localid = hereCellMapping.global2local(i + 1) - 1; // Starts from 0;
-						cur_ub2D->d_to_recv.push_back(CommunicationCell(localid, proc2Index->find(cellRealDistribution[i])->second, i + 1,buffered_flag[i]));
+						cur_ub2D->recvCommCells().push_back(CommunicationCell(localid, proc2Index->find(cellRealDistribution[i])->second, i + 1,buffered_flag[i]));
 						// recv_cells[tmp_count_scratch].setCommCell(localid,proc2Index->find(cellRealDistribution[i])->second,i);
 						tmp_count_scratch++;
 					}

@@ -4,8 +4,8 @@
 class UnstructFeeder: public virtual Reader
 {
 public:
-    UnstructBlock2D* UBs2 = NULL;
-    UnstructBlock3D* UBs3 = NULL;
+    UnstructBlock2D<2>* UBs2 = NULL;
+    UnstructBlock2D<3>* UBs3 = NULL;
     UnstructFeeder()
     {
 
@@ -22,13 +22,13 @@ public:
             if(UBs2) 
                 delete[] UBs2;
             
-            UBs2 = new UnstructBlock2D[d_nmesh];
+            UBs2 = new UnstructBlock2D<2>[d_nmesh];
         }
         else if(d_dim==3)
         {
             if(UBs3)
                 delete[] UBs3;
-            UBs3 = new UnstructBlock3D[d_nmesh];
+            UBs3 = new UnstructBlock2D<3>[d_nmesh];
         }
     }
     

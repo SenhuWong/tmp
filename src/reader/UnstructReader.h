@@ -32,7 +32,7 @@ public:
                 {
                     ind.clear();
                     auto& curBlk = UBs2[i];
-                    for(int j = 0;j<curBlk.d_nEs;j++)
+                    for(int j = 0;j<curBlk.nEdges();j++)
                     {
                         auto& curEdge = curBlk.d_localEdges[j];
                         if(curEdge.rCInd()==GeomElements::edge3d<2>::BoundaryType::WALL)
@@ -62,7 +62,7 @@ public:
                 {
                     ind.clear();
                     auto& curBlk = UBs2[i];
-                    for(int j = 0;j<curBlk.d_nEs;j++)
+                    for(int j = 0;j<curBlk.nEdges();j++)
                     {
                         auto& curEdge = curBlk.d_localEdges[j];
                         if(curEdge.rCInd()==GeomElements::edge3d<2>::BoundaryType::FARFIELD)
@@ -132,8 +132,8 @@ public:
             {
                 throw std::runtime_error("Open file Failure\n");
             }
-            UnstructBlock2D* cur_ub2D=NULL;
-            UnstructBlock3D* cur_ub3D=NULL;
+            UnstructBlock2D<2>* cur_ub2D=NULL;
+            UnstructBlock2D<3>* cur_ub3D=NULL;
             if(d_dim==2)
             {
                 cur_ub2D = &(UBs2[m]);
