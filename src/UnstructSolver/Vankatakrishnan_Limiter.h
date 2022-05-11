@@ -19,7 +19,7 @@ private:
     double ** mesh_var_cell_limit = NULL;
     
 public:
-    Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, Euler2D *hder_strategy);
+    Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy);
 
     ~Vankatakrishnan_Limiter();
 

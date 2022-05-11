@@ -1,9 +1,6 @@
 #pragma once
-class Euler2D;
+#include "TopologyHolderStrategy.h"
 
-#include "UnstructIntegrator.h"
-#define LIMITER_BIGVALUE 10.0;
-//#include "Euler2D.h"
 // A Valid limiter, given the TopologyHolder and TopologyHolderStrategy, it should be able to
 // (1).compute for each cell its limiter
 
@@ -14,7 +11,7 @@ public:
     int d_dim = 0;
     int d_NEQU = 0;
     UnstructTopologyHolder *d_hder = NULL;
-    Euler2D *d_hder_strategy = NULL;
+    TopologyHolderStrategy *d_hder_strategy = NULL;
 #define DEBUG
 #ifdef DEBUG
     int num_proc = -1;
@@ -29,7 +26,7 @@ public:
     }
 #endif // DEBUG
 
-    LimiterStrategy(UnstructTopologyHolder *hder, Euler2D *hder_strategy);
+    LimiterStrategy(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy);
     ~LimiterStrategy();
 public:
     // Provided Left and Right Consrevative Storage, compute the Left and Right increment as limiter is computed.

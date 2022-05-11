@@ -596,6 +596,8 @@ void unstruct_main()
     //rd->setOverSign(-2147483647);
     //rd->setWallSign(-2);
     rd->readAll();
+
+    
     
     
     MPI_Barrier(MPI_COMM_WORLD);
@@ -609,20 +611,18 @@ void unstruct_main()
     //
     //std::cout<<integrator->relatedProcs.size()<<"--------------------------"<<'\n';
     Euler2D* euler = new Euler2D(integrator);
+
     euler->test_communication();
     euler->test_partialcomm();
+    
     // euler->outPutNondim("NOndim",cur_proc);
-
-    bool use_implicit = true;
+    
+    bool use_implicit = false;
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,euler,5);
-    // MPI_Finalize();
-    // return;
-
-        rk_integrator->setComm(cur_proc,num_proc);
         rk_integrator->initialize();
-    //euler->writeCellData("InitialTime",cur_proc,0,euler->getU());
+        
         for(int i = 0;i<20001;i++)
         {
             rk_integrator->singleStep(i);

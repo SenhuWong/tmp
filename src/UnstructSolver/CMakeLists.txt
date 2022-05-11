@@ -10,4 +10,5 @@ ${CMAKE_CURRENT_SOURCE_DIR}/TimeStrategy.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/Vankatakrishnan_Limiter.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/FlowParamComputer.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/LU_SGS_Strategy.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/HLLCFluxStrategy.cpp
 PARENT_SCOPE)

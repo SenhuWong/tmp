@@ -6,14 +6,10 @@
 // I am not ready to decide what's for name.
 #include "SAMRAI/tbox/InputDatabase.h"
 #include "TimeStrategy.h"
-
+#include "UnstructIntegrator.h"
 
 class Euler2D : public TopologyHolderStrategy
 {
-public:
-    int d_NEQU = 4;
-    int d_nmesh = -1;
-
 private:
     // Const
     const double R = 287.0;
@@ -21,8 +17,6 @@ private:
     const double PI = 3.141593;
 
     const double K = 5; // For limiter
-    // Dimension
-    const int d_dim = 2;
     // FreeStream,this should be read from an input file
     double fs_mach = 0;
     double fs_AOA = 0;
@@ -91,8 +85,6 @@ private:
     void update_nondim_variable();
 
 public:
-    int cur_proc = -1;
-    int num_proc = -1;
     UnstructTopologyHolder *getIntegrator()
     {
         return d_hder;
@@ -142,40 +134,39 @@ public:
     void updateEdgeLeftRightValues();
     // Update flux with the corresponding left and right value
     void updateFlux();
-    inline double **getU()
+    inline double **getU() override
     {
         return U;
     }
 
-    inline GeomElements::vector3d<2, double> **getGradient()
+    inline void **getGradient() override
     {
-        return gradU;
+        return (void**)gradU;
     }
 
-    inline double **getUL()
+    inline double **getUL() override
     {
         return UL;
     }
 
-    inline double **getUR()
+    inline double **getUR() override
     {
         return UR;
     }
 
-    inline double **getFluxEdge()
+    inline double **getFluxEdge() override
     {
         return Flux_edge;
     }
 
-    inline double **getResidual()
+    inline double **getResidual() override
     {
         return Residual;
     }
 
-    
-    int getNEQU()
+    inline double **getSpectrum() override
     {
-        return d_NEQU;
+        return Spectrum_cell;
     }
 
 
@@ -241,362 +232,7 @@ public:
     {
     }
 
-    void SolveDiag(double** de_diag, double** dt )
-    {
-        double OMEGAN = 5;
-        for(int i = 0;i<d_nmesh;i++)
-        {
-            auto& curBlk = d_hder->blk2D[i];
-            for(int k = 0;k<d_hder->nCells(i);k++)
-            {
-                auto& curCell = curBlk.d_localCells[k];
-                double diag = curCell.volume()/dt[i][k] + 0.5*OMEGAN*Spectrum_cell[i][k];
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    de_diag[i][j+d_NEQU*k] = diag;
-                }
-            }
-        }
-    }
-
-    void ConservativeParam2ConvectiveFlux(double* W, double* Fc, GeomElements::vector3d<2,double>& norm_vec)
-    {
-        GeomElements::vector3d<2,double> velocity(W[2]/W[0],W[3]/W[0]);
-        double Vn = velocity.dot_product(norm_vec);
-        double DatCell = W[0];
-        double PatCell = (Gamma-1)*(W[1] - 0.5*DatCell*velocity.L2Square());
-        double rhoEatCell = W[1];
-
-        Fc[0] = W[0]*Vn;
-        Fc[1] = (W[1] + PatCell)*Vn;
-        
-        Fc[2] = W[2]*Vn + PatCell*norm_vec[0];
-        Fc[3] = W[3]*Vn + PatCell*norm_vec[1];
-    }
-
-
     
-    void SolveDF(int curMesh,int curCell,int curEdge,
-                double** W_scratch ,double** deltaW0,double* DF,
-                int ForB,int cellOffset)
-    {
-        // if(cur_proc==0)
-
-        // std::cout<<"curCell is "<<curCell<<'\n';
-        auto& edg = d_hder->blk2D[curMesh].d_localEdges[curEdge];
-        double Wp[d_NEQU];
-        double W[d_NEQU];
-        double W0[d_NEQU];
-        double Fcp[d_NEQU];
-        double Fc[d_NEQU];
-        double DFc[d_NEQU];
-        int lC = edg.lCInd();
-        int rC = edg.rCInd();
-        
-        if(curCell + cellOffset==lC)
-        {
-            if((rC>=0 and rC<lC) && ForB)//If ForB is 1, then calculate when curCell(lC) >the other cell(rC)
-            //If ForB is 0, then calculate when curCell(lC) < the other cell(rC)
-            {
-                if(rC >= d_hder->nCells(curMesh))
-                {
-                    rC = rC - d_hder->nCells(curMesh);
-                }
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    W0[j] = W_scratch[curMesh][j+d_NEQU*rC];
-                    Wp[j] =W0[j] + deltaW0[curMesh][j+d_NEQU*rC];
-                    W[j] = W0[j];
-                }
-                //Get convectiveFlux
-                GeomElements::vector3d<2,double> norm = edg.normal_vector();
-                ConservativeParam2ConvectiveFlux(W,Fc,norm);
-                ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    DFc[j] = Fcp[j] - Fc[j];
-                }
-
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    DF[j] = 0.5*(DFc[j])*edg.area();
-                }
-            }
-            else
-            {
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    DF[j] = 0;
-                }
-            }
-        }
-        else if(curCell + cellOffset==rC)
-        {
-            if((lC<rC)&& ForB)
-            {
-                if(lC>=d_hder->nCells(curMesh))
-                {
-                    lC = lC - d_hder->nCells(curMesh);
-                }
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    W0[j] = W_scratch[curMesh][j+d_NEQU*lC];
-                    Wp[j] = W0[j] + deltaW0[curMesh][j+d_NEQU*lC];
-                    W[j] = W0[j];
-                }
-                //Get convectiveFlux
-                GeomElements::vector3d<2,double> norm = edg.normal_vector();
-                ConservativeParam2ConvectiveFlux(W,Fc,norm);
-                ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    DFc[j] =  Fc[j] - Fcp[j];
-                }
-
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    DF[j] = 0.5*(DFc[j])*edg.area();
-                }
-            }
-            else
-            {
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    DF[j] = 0;
-                }
-            }
-        }
-        else
-        {
-            if(cur_proc==0)
-            {
-                std::cout<<lC<<","<<rC<<":"<<curCell<<","<<d_hder->nCells(curMesh)<<","<<cellOffset<<","<<ForB<<'\n';
-            }
-            throw std::runtime_error("Cur cell is not on either side,impossible\n");
-        }
-    }
-
-
-
-    //The skip point in here are level 1 sendcells and level 1,2 recvcells.
-    void SolveLocalForwardSweep(double** diag,
-                                double** W_scratch,double** deltaW1,
-                                int** skip_point,int* nskip)
-    {
-        int ForB = 1;
-        
-        double dFi[d_NEQU];
-        double dF[d_NEQU];
-        for(int i = 0;i<d_nmesh;i++)
-        {
-            int cellIdOffset = 0;
-            auto& curBlk = d_hder->blk2D[i];
-            //Refer to Unstruct
-            for(int k = 0;k<nskip[i]-1;k++)
-            {
-                
-                for(int l = skip_point[i][k]+1;l<skip_point[i][k+1];l++)
-                {
-                    int cellId = l;
-                    
-                    auto& curCell = curBlk.d_localCells[cellId];
-                    for(int j = 0;j<d_NEQU;j++)
-                    {
-                        dFi[j] = 0;
-                    }
-                    
-                    for(int j = 0;j<curCell.edge_size();j++)
-                    {
-                        //std::cout<<cellId<<":"<<j<<'\n';
-                        SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW1,dF,ForB,cellIdOffset);
-                        for(int m = 0;m<d_NEQU;m++)
-                        {
-                            dFi[m] += dF[m];
-                        }
-                    }
-                    
-                    for(int j = 0;j<d_NEQU;j++)
-                    {
-                        deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId] - dFi[j])/diag[i][j+d_NEQU*cellId];
-                    }
-                }
-            }
-        }
-    }
-    //The skip point in here are level 1 cells.
-    void SolveBoundaryForwardSweep(double** diag,
-                                double** W_scratch,double** deltaW1,
-                                int** skip_point,int * nskip)
-    {
-        int ForB = 1;
-        double dFi[d_NEQU];
-        double dF[d_NEQU];
-        for(int i = 0;i<d_nmesh;i++)
-        {
-            int cellIdOffset = d_hder->nCells(i);
-            auto& curBlk = d_hder->blk2D[i];
-            //Refer to Unstruct
-            for(int k = 0;k<nskip[i];k++)
-            {
-                int cellId = skip_point[i][k];
-                auto& curCell = curBlk.d_localCells[cellId];
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    dFi[j] = 0;
-                }
-                for(int j = 0;j<curCell.edge_size();j++)
-                {
-                    SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW1,dF,ForB,cellIdOffset);
-                    for(int m = 0;m<d_NEQU;m++)
-                    {
-                        dFi[m] += dF[m];
-                    }
-                }
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId]-dFi[j])/diag[i][j+d_NEQU*cellId];
-;               }   
-            }
-        }
-    }
-
-    void SolveBoundaryBackwardSweep(double** diag,
-                                    double** W_scratch,double** deltaW1,double** deltaW,
-                                    int ** skip_point,int * nskip)
-    {
-        int ForB = 0;
-        double dFi[d_NEQU];
-        double dF[d_NEQU];
-        for(int i = 0;i< d_nmesh;i++)
-        {
-            int cellIdOffset = d_hder->nCells(i);
-            auto& curBlk = d_hder->blk2D[i];
-            for(int k = 0;k<nskip[i];k++)
-            {
-                int cellId = skip_point[i][k];
-                auto& curCell = curBlk.d_localCells[cellId];
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    dFi[j] = 0;
-                }
-                for(int j = 0;j<curCell.edge_size();j++)
-                {
-                    SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,cellIdOffset);
-                    for(int m = 0;m<d_NEQU;m++)
-                    {
-                        dFi[m] += dF[m];
-                    }
-                }
-                for(int j = 0;j < d_NEQU;j++)
-                {
-                    deltaW[i][j+d_NEQU*cellId] = deltaW1[i][j+d_NEQU*cellId] - dFi[j]/diag[i][j+d_NEQU*cellId];
-                }
-            }
-        }
-
-    }
-
-    void SolveLocalBackwardSweep(double** diag,
-                                double** W_scratch,double** deltaW1,double** deltaW,
-                                int** skip_point,int* nskip)
-    {
-        int ForB = 0;
-        double dFi[d_NEQU];
-        double dF[d_NEQU];
-        for(int i = 0;i< d_nmesh;i++)
-        {
-            int cellIdOffset = 0;
-            auto& curBlk = d_hder->blk2D[i];
-            for(int k = 0;k<nskip[i]-1;k++)
-            {
-                for(int l = skip_point[i][k]+1;l<skip_point[i][k+1];l++)
-                {
-                    int cellId = l;
-                    auto& curCell = curBlk.d_localCells[cellId];
-                    for(int j =0;j<d_NEQU;j++)
-                    {
-                        dFi[j] = 0;
-                    }
-                    for(int j = 0;j<curCell.edge_size();j++)
-                    {
-                        SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,cellIdOffset);
-                        for(int m = 0;m<d_NEQU;m++)
-                        {
-                            dFi[m] += dF[m];
-                        }
-                    }
-                    for(int j = 0;j<d_NEQU;j++)
-                    {
-                        deltaW[i][j+d_NEQU*cellId] = deltaW1[i][j+d_NEQU*cellId] - dFi[j]/diag[i][j+d_NEQU*cellId];
-                    }
-                }
-            }
-        }
-    }
-
-    void SolveForwardSweep(double** diag,
-                        double** W_scratch,double** deltaW1)
-    {
-        int ForB = 1;
-        double dFi[d_NEQU];
-        double dF[d_NEQU];
-        for(int i = 0;i<d_nmesh;i++)
-        {
-            auto& curBlk = d_hder->blk2D[i];
-            for(int k = 0;k<d_hder->nCells(i);k++)
-            {
-                auto& curCell = curBlk.d_localCells[k];
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    dFi[j] = 0;
-                }
-                for(int j = 0 ;j<curCell.edge_size();j++)
-                {
-                    SolveDF(i,k,curCell.edgeInd(j),W_scratch,deltaW1,dF,ForB,0);
-                    for(int l = 0;l<d_NEQU;l++)
-                    {
-                        dFi[l] += dF[l];
-                    }
-                }
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    deltaW1[i][j+d_NEQU*k] = (-Residual[i][j+d_NEQU*k]-dFi[j])/diag[i][j+d_NEQU*k];
-                }
-            }
-        }
-    }
-
-    void SolveBackwardSweep(double** diag,
-                            double** W_scratch,double** deltaW1,double** deltaW)
-    {
-        int ForB = 0;
-        double dFi[d_NEQU];
-        double dF[d_NEQU];
-        for(int i = 0;i<d_nmesh;i++)
-        {
-            auto& curBlk = d_hder->blk2D[i];
-            for(int k = 0;k<d_hder->nCells(i);k++)
-            {
-                auto& curCell = curBlk.d_localCells[k];
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    dFi[j] = 0;
-                }
-                for(int j = 0;j<curCell.edge_size();j++)
-                {
-                    SolveDF(i,k,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,0);
-                    for(int l = 0;l<d_NEQU;l++)
-                    {
-                        dFi[l] += dF[l];
-                    }
-                }
-                for(int j = 0;j<d_NEQU;j++)
-                {
-                    deltaW[i][j+d_NEQU*k] = deltaW1[i][j+d_NEQU*k] - dFi[j]/diag[i][j+d_NEQU*k];
-                }
-            }
-        }
-    }
 
     void RemoteCellCommunication(double** value);
 

@@ -1,7 +1,6 @@
 #pragma once
 // This class should provide an interface
-#include <stdio.h>
-class Euler2D;
+#include "TopologyHolderStrategy.h"
 class UnstructTopologyHolder;
 class TimeStrategy
 {
@@ -14,13 +13,9 @@ protected:
     int d_nmesh = -1;
     int d_NEQU = -1;
     int d_dim = -1;
-    UnstructTopologyHolder *d_hder = NULL;
-    Euler2D *d_hder_strategy = NULL;
-    TimeStrategy(UnstructTopologyHolder *hder, Euler2D *hder_strategy);
-    //     : d_nmesh(hder->d_nmesh), d_NEQU(hder_strategy->d_NEQU), d_dim(hder->d_dim), d_hder(hder), d_hder_strategy(hder_strategy)
-    // {
-
-    // }
+    UnstructTopologyHolder *d_hder = nullptr;
+    TopologyHolderStrategy *d_hder_strategy = nullptr;
+    TimeStrategy(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy);
 public:
     virtual void initialize() = 0;
     //Things need to be done before making a time step forward

@@ -1,8 +1,9 @@
 #include "Vankatakrishnan_Limiter.h"
-#include "Euler2D.h"
+#include "UnstructIntegrator.h"
+#include "toolBox/vector3d.h"
 #include <fstream>
 
-Vankatakrishnan_Limiter::Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, Euler2D *hder_strategy)
+Vankatakrishnan_Limiter::Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy)
     : LimiterStrategy(hder, hder_strategy)
 {
     mesh_var_cell_limit = new double*[d_nmesh];
@@ -69,7 +70,7 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
             }
         }
     }
-    GeomElements::vector3d<2, double> **grad = d_hder_strategy->getGradient();
+    GeomElements::vector3d<2, double> **grad =(GeomElements::vector3d<2, double> **)(d_hder_strategy->getGradient());
     for (int i = 0; i < d_nmesh; i++)
     {
         auto &curBlk = d_hder->blk2D[i];

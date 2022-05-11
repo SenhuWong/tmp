@@ -1,8 +1,7 @@
 
 #pragma once
 // This class should provide an interface for FLux computation for Euler
-#include<stdio.h>
-class Euler2D;
+#include "TopologyHolderStrategy.h"
 class UnstructTopologyHolder;
 class FluxStrategy
 {
@@ -12,12 +11,9 @@ protected:
     int d_nmesh = -1;
     int d_NEQU = -1;
     int d_dim = -1;
-    UnstructTopologyHolder *d_hder = NULL;
-    Euler2D *d_hder_strategy = NULL;
-    FluxStrategy()
-    {
-    }
-    FluxStrategy(UnstructTopologyHolder *hder, Euler2D *hder_strategy);
+    UnstructTopologyHolder *d_hder = nullptr;
+    TopologyHolderStrategy *d_hder_strategy = nullptr;
+    FluxStrategy(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy);
 
 public:
     virtual void computeFlux() = 0;

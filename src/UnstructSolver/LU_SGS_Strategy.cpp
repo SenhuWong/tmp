@@ -1,7 +1,7 @@
 #include "LU_SGS_Strategy.h"
 #include "UnstructIntegrator.h"
-#include "Euler2D.h"
-LUSGSStrategy::LUSGSStrategy(UnstructTopologyHolder *hder, Euler2D* hder_strategy)
+#include "TopologyHolderStrategy.h"
+LUSGSStrategy::LUSGSStrategy(UnstructTopologyHolder *hder, TopologyHolderStrategy* hder_strategy)
     :TimeStrategy(hder,hder_strategy)
 {
     ForwardSweep_exceptions = new int*[d_nmesh];
@@ -287,14 +287,14 @@ void LUSGSStrategy::postprocessLUSGS()
 
 void LUSGSStrategy::SolveDiagOperator()
 {
-    d_hder_strategy->SolveDiag(d_diagOperator,d_stableDt);
+    SolveDiag(d_diagOperator,d_stableDt);
 }
 
 void LUSGSStrategy::SolveForwardSweep()
 {
 
     // 2.For all {localCell} - {SendCell_lv1}, using its original ranking perform forward Sweep.
-    d_hder_strategy->SolveLocalForwardSweep(d_diagOperator,W_scratch,d_deltaW1,ForwardSweep_exceptions,nForwardSweep_exceptions);
+    SolveLocalForwardSweep(d_diagOperator,W_scratch,d_deltaW1,ForwardSweep_exceptions,nForwardSweep_exceptions);
     // 3.SendRecv DWS computed in (Procedure 2.) from {SendCell_lv2} to {RecvCell_lv2}.
 
     if(d_hder_strategy->cur_proc==-1)std::cout<<"Finishing Loacal forward Sweep\n";
@@ -304,28 +304,28 @@ void LUSGSStrategy::SolveForwardSweep()
 
     if(d_hder_strategy->cur_proc==-1)std::cout<<"FInishing Remote cell communication\n";
     // 4.For all {SendCell_lv1} + {RecvCell_lv1}, using its updated ranking perform forward Sweep.
-    d_hder_strategy->SolveBoundaryForwardSweep(d_diagOperator,W_scratch,d_deltaW1,ForwardSweep_Only,nForwardSweep_Only);
+    SolveBoundaryForwardSweep(d_diagOperator,W_scratch,d_deltaW1,ForwardSweep_Only,nForwardSweep_Only);
     if(d_hder_strategy->cur_proc==-1)std::cout<<"FInishing boundary forward Sweep\n";
 }
 
 void LUSGSStrategy::SolveBackwardSweep()
 {
     // 5.For all {SendCell_lv1} + {RecvCell_lv1}, using its updated ranking perform backward Sweep.
-    d_hder_strategy->SolveBoundaryBackwardSweep(d_diagOperator,W_scratch,d_deltaW1,d_deltaW,ForwardSweep_Only,nForwardSweep_Only);
+    SolveBoundaryBackwardSweep(d_diagOperator,W_scratch,d_deltaW1,d_deltaW,ForwardSweep_Only,nForwardSweep_Only);
     if(d_hder_strategy->cur_proc==-1)std::cout<<"Finishing boundary backward Sweep\n";
     // 6.For all {localCell} - {SendCell_lv1}, using its updated ranking perform backward Sweep.
-    d_hder_strategy->SolveLocalBackwardSweep(d_diagOperator,W_scratch,d_deltaW1,d_deltaW,ForwardSweep_exceptions,nForwardSweep_exceptions);
+    SolveLocalBackwardSweep(d_diagOperator,W_scratch,d_deltaW1,d_deltaW,ForwardSweep_exceptions,nForwardSweep_exceptions);
     if(d_hder_strategy->cur_proc==-1)std::cout<<"Finishing local backward Sweep\n";
 }
 
 void LUSGSStrategy::SolveForwardSweepSerial()
 {
-    d_hder_strategy->SolveForwardSweep(d_diagOperator,W_scratch,d_deltaW1);
+    SolveForwardSweep(d_diagOperator,W_scratch,d_deltaW1);
 }
 
 void LUSGSStrategy::SolveBackwardSweepSerial()
 {
-    d_hder_strategy->SolveBackwardSweep(d_diagOperator,W_scratch,d_deltaW1,d_deltaW);
+    SolveBackwardSweep(d_diagOperator,W_scratch,d_deltaW1,d_deltaW);
 
 }
 
@@ -343,6 +343,336 @@ void LUSGSStrategy::UpdateConservativeForRecvCells()
             W_scratch[i][3+d_NEQU*cellId] = U[i][0+d_NEQU*cellId]*U[i][3+d_NEQU*cellId];
             W_scratch[i][1+d_NEQU*cellId] = U[i][1+d_NEQU*cellId]/(Gamma - 1) 
             + 0.5*U[i][0+d_NEQU*cellId]*(powf64(U[i][2+d_NEQU*cellId],2)+powf64(U[i][3+d_NEQU*cellId],2));
+        }
+    }
+}
+
+
+void LUSGSStrategy::SolveDiag(double** de_diag, double** dt)
+{
+    double** spectrum_cell = d_hder_strategy->getSpectrum();
+    double OMEGAN = 5;
+    for(int i = 0;i<d_nmesh;i++)
+    {
+        auto& curBlk = d_hder->blk2D[i];
+        for(int k = 0;k<d_hder->nCells(i);k++)
+        {
+            auto& curCell = curBlk.d_localCells[k];
+            double diag = curCell.volume()/dt[i][k] + 0.5*OMEGAN*spectrum_cell[i][k];
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                de_diag[i][j+d_NEQU*k] = diag;
+            }
+        }
+    }
+}
+    
+void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
+            double** W_scratch ,double** deltaW0,double* DF,
+            int ForB,int cellOffset)
+{
+    // if(cur_proc==0)
+    // std::cout<<"curCell is "<<curCell<<'\n';
+    auto& edg = d_hder->blk2D[curMesh].d_localEdges[curEdge];
+    double Wp[d_NEQU];
+    double W[d_NEQU];
+    double W0[d_NEQU];
+    double Fcp[d_NEQU];
+    double Fc[d_NEQU];
+    double DFc[d_NEQU];
+    int lC = edg.lCInd();
+    int rC = edg.rCInd();
+    
+    if(curCell + cellOffset==lC)
+    {
+        if((rC>=0 and rC<lC) && ForB)//If ForB is 1, then calculate when curCell(lC) >the other cell(rC)
+        //If ForB is 0, then calculate when curCell(lC) < the other cell(rC)
+        {
+            if(rC >= d_hder->nCells(curMesh))
+            {
+                rC = rC - d_hder->nCells(curMesh);
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                W0[j] = W_scratch[curMesh][j+d_NEQU*rC];
+                Wp[j] =W0[j] + deltaW0[curMesh][j+d_NEQU*rC];
+                W[j] = W0[j];
+            }
+            //Get convectiveFlux
+            GeomElements::vector3d<2,double> norm = edg.normal_vector();
+            ConservativeParam2ConvectiveFlux(W,Fc,norm);
+            ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                DFc[j] = Fcp[j] - Fc[j];
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                DF[j] = 0.5*(DFc[j])*edg.area();
+            }
+        }
+        else
+        {
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                DF[j] = 0;
+            }
+        }
+    }
+    else if(curCell + cellOffset==rC)
+    {
+        if((lC<rC)&& ForB)
+        {
+            if(lC>=d_hder->nCells(curMesh))
+            {
+                lC = lC - d_hder->nCells(curMesh);
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                W0[j] = W_scratch[curMesh][j+d_NEQU*lC];
+                Wp[j] = W0[j] + deltaW0[curMesh][j+d_NEQU*lC];
+                W[j] = W0[j];
+            }
+            //Get convectiveFlux
+            GeomElements::vector3d<2,double> norm = edg.normal_vector();
+            ConservativeParam2ConvectiveFlux(W,Fc,norm);
+            ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                DFc[j] =  Fc[j] - Fcp[j];
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                DF[j] = 0.5*(DFc[j])*edg.area();
+            }
+        }
+        else
+        {
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                DF[j] = 0;
+            }
+        }
+    }
+    else
+    {
+        throw std::runtime_error("Cur cell is not on either side,impossible\n");
+    }
+}
+//The skip point in here are level 1 sendcells and level 1,2 recvcells.
+void LUSGSStrategy::SolveLocalForwardSweep(double** diag,
+                            double** W_scratch,double** deltaW1,
+                            int** skip_point,int* nskip)
+{
+    int ForB = 1;
+    double** Residual = d_hder_strategy->getResidual();
+    
+    double dFi[d_NEQU];
+    double dF[d_NEQU];
+    for(int i = 0;i<d_nmesh;i++)
+    {
+        int cellIdOffset = 0;
+        auto& curBlk = d_hder->blk2D[i];
+        //Refer to Unstruct
+        for(int k = 0;k<nskip[i]-1;k++)
+        {
+            
+            for(int l = skip_point[i][k]+1;l<skip_point[i][k+1];l++)
+            {
+                int cellId = l;
+                
+                auto& curCell = curBlk.d_localCells[cellId];
+                for(int j = 0;j<d_NEQU;j++)
+                {
+                    dFi[j] = 0;
+                }
+                
+                for(int j = 0;j<curCell.edge_size();j++)
+                {
+                    //std::cout<<cellId<<":"<<j<<'\n';
+                    SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW1,dF,ForB,cellIdOffset);
+                    for(int m = 0;m<d_NEQU;m++)
+                    {
+                        dFi[m] += dF[m];
+                    }
+                }
+                
+                for(int j = 0;j<d_NEQU;j++)
+                {
+                    deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId] - dFi[j])/diag[i][j+d_NEQU*cellId];
+                }
+            }
+        }
+    }
+}
+//The skip point in here are level 1 cells.
+void LUSGSStrategy::SolveBoundaryForwardSweep(double** diag,
+                            double** W_scratch,double** deltaW1,
+                            int** skip_point,int * nskip)
+{
+    int ForB = 1;
+    double** Residual = d_hder_strategy->getResidual();
+    double dFi[d_NEQU];
+    double dF[d_NEQU];
+    for(int i = 0;i<d_nmesh;i++)
+    {
+        int cellIdOffset = d_hder->nCells(i);
+        auto& curBlk = d_hder->blk2D[i];
+        //Refer to Unstruct
+        for(int k = 0;k<nskip[i];k++)
+        {
+            int cellId = skip_point[i][k];
+            auto& curCell = curBlk.d_localCells[cellId];
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                dFi[j] = 0;
+            }
+            for(int j = 0;j<curCell.edge_size();j++)
+            {
+                SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW1,dF,ForB,cellIdOffset);
+                for(int m = 0;m<d_NEQU;m++)
+                {
+                    dFi[m] += dF[m];
+                }
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId]-dFi[j])/diag[i][j+d_NEQU*cellId];
+;              }   
+        }
+    }
+}
+void LUSGSStrategy::SolveBoundaryBackwardSweep(double** diag,
+                                double** W_scratch,double** deltaW1,double** deltaW,
+                                int ** skip_point,int * nskip)
+{
+    int ForB = 0;
+    double dFi[d_NEQU];
+    double dF[d_NEQU];
+    for(int i = 0;i< d_nmesh;i++)
+    {
+        int cellIdOffset = d_hder->nCells(i);
+        auto& curBlk = d_hder->blk2D[i];
+        for(int k = 0;k<nskip[i];k++)
+        {
+            int cellId = skip_point[i][k];
+            auto& curCell = curBlk.d_localCells[cellId];
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                dFi[j] = 0;
+            }
+            for(int j = 0;j<curCell.edge_size();j++)
+            {
+                SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,cellIdOffset);
+                for(int m = 0;m<d_NEQU;m++)
+                {
+                    dFi[m] += dF[m];
+                }
+            }
+            for(int j = 0;j < d_NEQU;j++)
+            {
+                deltaW[i][j+d_NEQU*cellId] = deltaW1[i][j+d_NEQU*cellId] - dFi[j]/diag[i][j+d_NEQU*cellId];
+            }
+        }
+    }
+}
+void LUSGSStrategy::SolveLocalBackwardSweep(double** diag,
+                            double** W_scratch,double** deltaW1,double** deltaW,
+                            int** skip_point,int* nskip)
+{
+    int ForB = 0;
+    double dFi[d_NEQU];
+    double dF[d_NEQU];
+    for(int i = 0;i< d_nmesh;i++)
+    {
+        int cellIdOffset = 0;
+        auto& curBlk = d_hder->blk2D[i];
+        for(int k = 0;k<nskip[i]-1;k++)
+        {
+            for(int l = skip_point[i][k]+1;l<skip_point[i][k+1];l++)
+            {
+                int cellId = l;
+                auto& curCell = curBlk.d_localCells[cellId];
+                for(int j =0;j<d_NEQU;j++)
+                {
+                    dFi[j] = 0;
+                }
+                for(int j = 0;j<curCell.edge_size();j++)
+                {
+                    SolveDF(i,cellId,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,cellIdOffset);
+                    for(int m = 0;m<d_NEQU;m++)
+                    {
+                        dFi[m] += dF[m];
+                    }
+                }
+                for(int j = 0;j<d_NEQU;j++)
+                {
+                    deltaW[i][j+d_NEQU*cellId] = deltaW1[i][j+d_NEQU*cellId] - dFi[j]/diag[i][j+d_NEQU*cellId];
+                }
+            }
+        }
+    }
+}
+void LUSGSStrategy::SolveForwardSweep(double** diag,
+                    double** W_scratch,double** deltaW1)
+{
+    int ForB = 1;
+    double** Residual = d_hder_strategy->getResidual();
+    double dFi[d_NEQU];
+    double dF[d_NEQU];
+    for(int i = 0;i<d_nmesh;i++)
+    {
+        auto& curBlk = d_hder->blk2D[i];
+        for(int k = 0;k<d_hder->nCells(i);k++)
+        {
+            auto& curCell = curBlk.d_localCells[k];
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                dFi[j] = 0;
+            }
+            for(int j = 0 ;j<curCell.edge_size();j++)
+            {
+                SolveDF(i,k,curCell.edgeInd(j),W_scratch,deltaW1,dF,ForB,0);
+                for(int l = 0;l<d_NEQU;l++)
+                {
+                    dFi[l] += dF[l];
+                }
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                deltaW1[i][j+d_NEQU*k] = (-Residual[i][j+d_NEQU*k]-dFi[j])/diag[i][j+d_NEQU*k];
+            }
+        }
+    }
+}
+void LUSGSStrategy::SolveBackwardSweep(double** diag,
+                        double** W_scratch,double** deltaW1,double** deltaW)
+{
+    int ForB = 0;
+    double dFi[d_NEQU];
+    double dF[d_NEQU];
+    for(int i = 0;i<d_nmesh;i++)
+    {
+        auto& curBlk = d_hder->blk2D[i];
+        for(int k = 0;k<d_hder->nCells(i);k++)
+        {
+            auto& curCell = curBlk.d_localCells[k];
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                dFi[j] = 0;
+            }
+            for(int j = 0;j<curCell.edge_size();j++)
+            {
+                SolveDF(i,k,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,0);
+                for(int l = 0;l<d_NEQU;l++)
+                {
+                    dFi[l] += dF[l];
+                }
+            }
+            for(int j = 0;j<d_NEQU;j++)
+            {
+                deltaW[i][j+d_NEQU*k] = deltaW1[i][j+d_NEQU*k] - dFi[j]/diag[i][j+d_NEQU*k];
+            }
         }
     }
 }

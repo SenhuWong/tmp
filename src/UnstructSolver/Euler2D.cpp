@@ -1,6 +1,6 @@
 #include "Euler2D.h"
 #include "HLLCFluxStrategy.h"
-#include "UnstructIntegrator.h"
+
 #include "Vankatakrishnan_Limiter.h"
 double computeEdgeNormal(int dim, double xv[4][3], int nvert, double xnorm[3], bool counter_clock = false);
 #include <math.h>
@@ -73,6 +73,10 @@ bool rankWithXY(PressureHolder2D &e1,PressureHolder2D &e2)
 Euler2D::Euler2D(UnstructTopologyHolder *hder)
     : TopologyHolderStrategy(hder)
 {
+    
+    TopologyHolderStrategy::d_NEQU = 4;
+    TopologyHolderStrategy::d_dim = 2;
+    TopologyHolderStrategy::d_nmesh = d_hder->d_nmesh;
     // Communication set
     cur_proc = d_hder->curproc;
     num_proc = d_hder->numproc;
@@ -84,7 +88,6 @@ Euler2D::Euler2D(UnstructTopologyHolder *hder)
 #endif // DEBUG
     d_fluxComputer = new HLLCFluxStrategy(d_hder, this);
     d_fluxComputer->setComm(num_proc, cur_proc);
-    d_nmesh = d_hder->d_nmesh;
     // Allocate Data Storage for this problem
     registerTopology();
     // This should be done with an input_db
@@ -623,7 +626,6 @@ void Euler2D::initializeData()
     {
         std::cout << fs_primVar[k] << '\n';
     }
-    // writeCellData("RightAfterInit", cur_proc, 0, W);
 }
 
 void Euler2D::ReconstructionInitial()
