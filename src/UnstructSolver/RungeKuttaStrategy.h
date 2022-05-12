@@ -29,7 +29,7 @@ public:
     }
     void writeCell()
     {
-        d_hder_strategy->withinBlockCommunication();
+        d_hder_strategy->AllCellCommunication(d_hder_strategy->getU());
         d_hder_strategy->writeCellData("AfterCommFinal",d_hder_strategy->cur_proc, 0, d_hder_strategy->getU());
     }
 

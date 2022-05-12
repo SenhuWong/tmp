@@ -635,7 +635,7 @@ void unstruct_main()
                 
             if(i%20000==0)
             {
-                euler->withinBlockCommunication();
+                euler->AllCellCommunication(euler->getU());
                 euler->writeCellData("cellDatParallel"+std::to_string(i+1),cur_proc,0,euler->getU());
             }
         }
@@ -652,13 +652,13 @@ void unstruct_main()
         {
             lusgs->singleStep(i);
             
-            if(i%100==0)
-            {
-                std::cout<<i<<'\n';
-            }
+            // if(i%100==0)
+            // {
+            //     std::cout<<i<<'\n';
+            // }
             if(i%5000==0)
             {
-                euler->withinBlockCommunication();
+                euler->AllCellCommunication(euler->getU());
                 euler->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,euler->getU());
             }
         }

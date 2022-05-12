@@ -1,6 +1,6 @@
 #include "TimeStrategy.h"
 #include <set>
-#include "Euler2D.h"
+#include "TopologyHolderStrategy.h"
 #include "toolBox/vector3d.h"
 class LUSGSStrategy : public TimeStrategy
 {

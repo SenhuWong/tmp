@@ -1,9 +1,45 @@
-#include "Vankatakrishnan_Limiter.h"
+
+#pragma once
+#define LIMITER_K 5
+// This should be a subclass for limiter .
+
+// Looks like I have to write limiter one for unstruct and another for struct.
+// Or if all limiter want to know max and min, we could implement the filling
+// of max and min in Strategy.
+// And after that is filled ,Wmax and Wmin could be directly used to store
+// delta1,max and delta1,min.
+// For every edge that we want to compute limiter, we need to pass in the delta2
+#include "LimiterStrategy.h"
 #include "UnstructIntegrator.h"
 #include "toolBox/vector3d.h"
-#include <fstream>
+template<int ndim>
+class Vankatakrishnan_Limiter : public LimiterStrategy
+{
+private:
+    double ** Umax=NULL;
+    double ** Umin=NULL;
+    double ** mesh_var_cell_limit = NULL;
+    
+public:
+    Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy);
 
-Vankatakrishnan_Limiter::Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy)
+    ~Vankatakrishnan_Limiter();
+
+    void computeLimiter(); // cell_ind starts from 0
+    
+    double getLimiter(int meshInd, int equInd, int cellInd);
+
+    // void write_Lmitera();
+
+    void computeLeftRight();
+
+    void init();
+
+};
+
+
+template<int ndim>
+Vankatakrishnan_Limiter<ndim>::Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, TopologyHolderStrategy *hder_strategy)
     : LimiterStrategy(hder, hder_strategy)
 {
     mesh_var_cell_limit = new double*[d_nmesh];
@@ -16,8 +52,8 @@ Vankatakrishnan_Limiter::Vankatakrishnan_Limiter(UnstructTopologyHolder *hder, T
         Umin[i] = new double [d_NEQU*d_hder->nCells(i)];
     }
 }
-
-Vankatakrishnan_Limiter::~Vankatakrishnan_Limiter()
+template<int ndim>
+Vankatakrishnan_Limiter<ndim>::~Vankatakrishnan_Limiter()
 {
     for(int i = 0;i < d_nmesh;i++)
     {
@@ -29,8 +65,8 @@ Vankatakrishnan_Limiter::~Vankatakrishnan_Limiter()
     delete[] Umax;
     delete[] Umin;
 }
-
-void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
+template<int ndim>
+void Vankatakrishnan_Limiter<ndim>::computeLimiter() // cell_ind starts from 0
 {
     double **UL = d_hder_strategy->getUL();
     double **UR = d_hder_strategy->getUR();
@@ -70,7 +106,7 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
             }
         }
     }
-    GeomElements::vector3d<2, double> **grad =(GeomElements::vector3d<2, double> **)(d_hder_strategy->getGradient());
+    GeomElements::vector3d<ndim, double> **grad =(GeomElements::vector3d<ndim, double> **)(d_hder_strategy->getGradientPrimitive());
     for (int i = 0; i < d_nmesh; i++)
     {
         auto &curBlk = d_hder->blk2D[i];
@@ -81,7 +117,7 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
             int rc = curEdge.rCInd();
             if (lc >= 0)
             {
-                GeomElements::vector3d<2, double> leftVec = curEdge.center() - curBlk.d_localCells[lc].center();
+                GeomElements::vector3d<ndim, double> leftVec = curEdge.center() - curBlk.d_localCells[lc].center();
                 double epsilonSquare = powf64(LIMITER_K, d_dim) * d_hder->CellVolume(i, lc);
                 double result_limit;
                 for (int j = 0; j < d_NEQU; j++)
@@ -111,7 +147,7 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
             }
             if (rc >= 0)
             {
-                GeomElements::vector3d<2, double> rightVec = curEdge.center() - curBlk.d_localCells[rc].center();
+                GeomElements::vector3d<ndim, double> rightVec = curEdge.center() - curBlk.d_localCells[rc].center();
                 double epsilonSquare = powf64(LIMITER_K, d_dim) * d_hder->CellVolume(i, rc);
                 double result_limit;
                 for (int j = 0; j < d_NEQU; j++)
@@ -140,14 +176,15 @@ void Vankatakrishnan_Limiter::computeLimiter() // cell_ind starts from 0
     // recorder.close();
 }
 
-double Vankatakrishnan_Limiter::getLimiter(int meshInd, int equInd, int cellInd)
+template<int ndim>
+double Vankatakrishnan_Limiter<ndim>::getLimiter(int meshInd, int equInd, int cellInd)
 {
     return mesh_var_cell_limit[meshInd][equInd+d_NEQU*cellInd];
 }
 
 // Set Umax Umin and limiter to initial value.
-
-void Vankatakrishnan_Limiter::init()
+template<int ndim>
+void Vankatakrishnan_Limiter<ndim>::init()
 {
     double **U = d_hder_strategy->getU();
     for (int i = 0; i < d_nmesh; i++)
@@ -163,46 +200,3 @@ void Vankatakrishnan_Limiter::init()
         }
     }
 }
-
-
-// void Vankatakrishnan_Limiter::write_Lmitera()
-// {
-//     for (int i = 0; i < d_nmesh; i++)
-//     {
-//         std::ofstream fout;
-//         fout.open("Limiter" + std::to_string(i) + std::to_string(cur_proc));
-//         auto &curBlk = d_hder->blk2D[i];
-//         fout << "TITLE =\"Tioga output\"\n";
-//         fout << "VARIABLES=\"X\",\"Y\",\"Limiter0\",\"Limiter1\",\"Limiter2\",\"Limiter3\"\n";
-//         fout << "ZONE T=\"VOL_MIXED\",N=" << curBlk.d_nPs << " E=" << curBlk.d_nCs << " ET = QUADRILATERAL, F = FEBLOCK\n";
-//         fout << "VARLOCATION =  (1=NODAL,2=NODAL,3=CELLCENTERED,4=CELLCENTERED,5=CELLCENTERED,6=CELLCENTERED)\n";
-//         for (int j = 0; j < d_dim; j++)
-//         {
-//             for (int k = 0; k < curBlk.d_nPs; k++)
-//             {
-//                 fout << curBlk.d_localPoints[k][j] << '\n';
-//             }
-//         }
-//         for (int j = 0; j < d_NEQU; j++)
-//         {
-//             for (int k = 0; k < curBlk.d_nCs; k++)
-//             {
-//                 fout << (mesh_var_cell_limit[i][j][k] > 1) << '\n';
-//             }
-//         }
-//         for (int k = 0; k < curBlk.d_nCs; k++)
-//         {
-//             auto &curCell = curBlk.d_localCells[k];
-//             for (int j = 0; j < curCell.size(); j++)
-//             {
-//                 fout << curCell.pointInd(j) + 1 << " ";
-//             }
-//             for (int j = curCell.size(); j < 4; j++)
-//             {
-//                 fout << curCell.pointInd(curCell.size() - 1) + 1 << " ";
-//             }
-//             fout << '\n';
-//         }
-//         fout.close();
-//     }
-// }

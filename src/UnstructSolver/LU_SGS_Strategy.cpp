@@ -182,7 +182,6 @@ void LUSGSStrategy::preprocessLUSGS()
 
 void LUSGSStrategy::Update()
 {
-    
     d_hder_strategy->preprocessAdvance(0);
 
     d_hder_strategy->SolveTime(d_stableDt,d_CFL_number);
