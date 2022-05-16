@@ -26,17 +26,17 @@ protected:
     double fs_AOA = 0;
     double fs_density = 0;
     double fs_pressure = 0;
-    double fs_eigen_Length;
+    double fs_eigen_Length = 0;
     // Derived freeStream
     double fs_soundSpeed;
     double fs_velocity_magnitude;
     double fs_velocity_components[2];
-    double fs_E;
     double fs_Temperature;
 
-    double fs_Prandtl;
-    double fs_viscos_efficient;
-    double fs_Reynolds_number;
+    double fs_Pr = 0.72;
+    double fs_Prt = 0.9;
+    double fs_mu;
+    double fs_Re;
 
     // Nondimensional freeStream Variables,should be calculated right after the above is obtained.
     double fsnd_density;
@@ -44,8 +44,9 @@ protected:
     double fsnd_soundSpeed;
     double fsnd_velocity_components[3];
     double fsnd_Temperature;
-    double fsnd_E;
     double fs_primVar[4];
+
+    
 
     // Data storage for MPI communciation
     // Each mesh has only one block as requested by TIOGA;
@@ -56,6 +57,8 @@ protected:
     // For debug.
     int **testing_flag = NULL;
 friend class BoundaryStrategy;
+friend class LUSGSStrategy;
+friend class LaminarFluxStrategy;
     
 public:
     int cur_proc = -1;
@@ -89,6 +92,11 @@ public:
         return d_dim;
     }
 
+    virtual void **getGradientT() 
+    {
+        return nullptr;
+    }
+
     virtual void registerTopology() = 0;
 
 public:
@@ -105,15 +113,14 @@ public:
 
     virtual void** getGradientPrimitive() = 0;
 
-    virtual double **getUL() = 0;
-
-    virtual double **getUR() = 0;
-
-    virtual double **getFluxEdge() = 0;
-
     virtual double **getResidual() = 0;
 
-    virtual double **getSpectrum() = 0;
+    virtual double **getSpectrumConvective() = 0;
+
+    virtual double **getSpectrumViscour()
+    {
+        return nullptr;
+    }
     
     virtual void initializeData() = 0;
 
@@ -137,6 +144,11 @@ public:
     virtual bool isInvicid() = 0;
 
     virtual void getFreeStreamVars(double* out) = 0;
+
+    virtual double getMuOverPr()
+    {
+        return 0;
+    }
 
     //These should be optinal
 

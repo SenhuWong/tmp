@@ -2,12 +2,12 @@
 #include "UnstructIntegrator.h"
 void HLLCFluxStrategy::computeFlux()
 {
+    updateLeftRight();
     // if (cur_proc == 0)
     // std::cout<<"ComputeFlux1 being called\n";
     const double Gamma = 1.4;
-    double **UL = d_hder_strategy->getUL();
-    double **UR = d_hder_strategy->getUR();
-    double **Flux = d_hder_strategy->getFluxEdge();
+    double Flux[5];
+    double **Residual = d_hder_strategy->getResidual();
     
     for (int i = 0; i < d_nmesh; i++)
     {
@@ -23,13 +23,14 @@ void HLLCFluxStrategy::computeFlux()
             }
             if (rC == GeomElements::edge3d<2>::BoundaryType::WALL)
             {
-                Flux[i][0+d_NEQU*k] = 0 * curEdge.area();
-                Flux[i][1+d_NEQU*k] = 0 * curEdge.area();
+                Flux[0] = 0 * curEdge.area();
+                Flux[1] = 0 * curEdge.area();
                 double PatFace = UL[i][1+d_NEQU*k];
                 for (int l = 0; l < d_dim; l++)
                 {
-                    Flux[i][l + 2+d_NEQU*k] = PatFace * curEdge.normal_vector()[l] * curEdge.area();
+                    Flux[l + 2] = PatFace * curEdge.normal_vector()[l] * curEdge.area();
                 }
+                
             }
             else if (rC == GeomElements::edge3d<2>::BoundaryType::FARFIELD)
             {
@@ -42,11 +43,11 @@ void HLLCFluxStrategy::computeFlux()
                 }
                 double rhoEatFace = PatFace / (Gamma - 1) + 0.5 * DatFace * (Velocity.L2Square());
                 double normalVelocity = Velocity.dot_product(curEdge.normal_vector());
-                Flux[i][0+d_NEQU*k] = normalVelocity * DatFace * curEdge.area();
-                Flux[i][1+d_NEQU*k] = normalVelocity * (rhoEatFace + PatFace) * curEdge.area();
+                Flux[0] = normalVelocity * DatFace * curEdge.area();
+                Flux[1] = normalVelocity * (rhoEatFace + PatFace) * curEdge.area();
                 for (int l = 0; l < d_dim; l++)
                 {
-                    Flux[i][l + 2+d_NEQU*k] = (normalVelocity * DatFace * Velocity[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
+                    Flux[l + 2] = (normalVelocity * DatFace * Velocity[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
                 }
             }
             else // Is an inner edge, use HLLC
@@ -87,11 +88,11 @@ void HLLCFluxStrategy::computeFlux()
                     double DatFace = UL[i][0+d_NEQU*k];
                     double PatFace = UL[i][1+d_NEQU*k];
                     double rhoEatFace = PatFace / (Gamma - 1) + 0.5 * DatFace * velocity_left.L2Square();
-                    Flux[i][0+d_NEQU*k] = Vn_left * DatFace * curEdge.area();
-                    Flux[i][1+d_NEQU*k] = Vn_left * (rhoEatFace + PatFace) * curEdge.area();
+                    Flux[0] = Vn_left * DatFace * curEdge.area();
+                    Flux[1] = Vn_left * (rhoEatFace + PatFace) * curEdge.area();
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Flux[i][l + 2+d_NEQU*k] = (Vn_left * DatFace * velocity_left[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
+                        Flux[l + 2] = (Vn_left * DatFace * velocity_left[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
                     }
                 }
                 else if (Sr < 0.0)
@@ -99,11 +100,11 @@ void HLLCFluxStrategy::computeFlux()
                     double DatFace = UR[i][0+d_NEQU*k];
                     double PatFace = UR[i][1+d_NEQU*k];
                     double rhoEatFace = PatFace / (Gamma - 1) + 0.5 * DatFace * velocity_righ.L2Square();
-                    Flux[i][0+d_NEQU*k] = Vn_righ * DatFace * curEdge.area();
-                    Flux[i][1+d_NEQU*k] = Vn_righ * (rhoEatFace + PatFace) * curEdge.area();
+                    Flux[0] = Vn_righ * DatFace * curEdge.area();
+                    Flux[1] = Vn_righ * (rhoEatFace + PatFace) * curEdge.area();
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Flux[i][l + 2+d_NEQU*k] = (Vn_righ * DatFace * velocity_righ[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
+                        Flux[l + 2] = (Vn_righ * DatFace * velocity_righ[l] + PatFace * curEdge.normal_vector()[l]) * curEdge.area();
                     }
                 }
                 else // Between SM and SR
@@ -130,18 +131,38 @@ void HLLCFluxStrategy::computeFlux()
                         velocity_ref = velocity_left;
                     }
                     double rhoE_ref = pressure_ref / (Gamma - 1) + 0.5 * density_ref * velocity_ref.L2Square();
-                    Flux[i][0+d_NEQU*k] = (SRef - Vn_ref) * density_ref / (SRef - Sm);
-                    Flux[i][1+d_NEQU*k] = ((SRef - Vn_ref) * rhoE_ref - pressure_ref * Vn_ref + p_star * Sm) / (SRef - Sm);
+                    Flux[0] = (SRef - Vn_ref) * density_ref / (SRef - Sm);
+                    Flux[1] = ((SRef - Vn_ref) * rhoE_ref - pressure_ref * Vn_ref + p_star * Sm) / (SRef - Sm);
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Flux[i][l + 2+d_NEQU*k] = ((SRef - Vn_ref) * density_ref * velocity_ref[l] + (p_star - pressure_ref) * curEdge.normal_vector()[l]) / (SRef - Sm);
+                        Flux[l + 2] = ((SRef - Vn_ref) * density_ref * velocity_ref[l] + (p_star - pressure_ref) * curEdge.normal_vector()[l]) / (SRef - Sm);
                     }
-                    Flux[i][0+d_NEQU*k] = Flux[i][0+d_NEQU*k] * Sm * curEdge.area();
-                    Flux[i][1+d_NEQU*k] = (Flux[i][1+d_NEQU*k] + p_star) * Sm * curEdge.area();
+                    Flux[0] = Flux[0] * Sm * curEdge.area();
+                    Flux[1] = (Flux[1] + p_star) * Sm * curEdge.area();
                     for (int l = 0; l < d_dim; l++)
                     {
-                        Flux[i][l + 2+d_NEQU*k] = (Flux[i][l + 2+d_NEQU*k] * Sm + p_star * curEdge.normal_vector()[l]) * curEdge.area();
+                        Flux[l + 2] = (Flux[l + 2] * Sm + p_star * curEdge.normal_vector()[l]) * curEdge.area();
                     }
+                }
+            }
+
+            if (lC >= 0) // Left plus right minus
+            {
+                for (int j = 0; j < d_NEQU; j++)
+                {
+                    Residual[i][j+d_NEQU*lC] += Flux[j];
+                }
+            }
+            else
+            {
+                std::cout << "left cell ind can't be negative\n";
+                std::cin.get();
+            }
+            if (rC >= 0)
+            {
+                for (int j = 0; j < d_NEQU; j++)
+                {
+                    Residual[i][j+d_NEQU*rC] -= Flux[j];
                 }
             }
         }

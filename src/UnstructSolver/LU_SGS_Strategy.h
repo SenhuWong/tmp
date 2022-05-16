@@ -5,6 +5,8 @@
 class LUSGSStrategy : public TimeStrategy
 {
 private:
+    double fs_Pr;
+    double fs_Prt;
 
     //std::set<int,std::less<int>>* ForwardSweep_excluded_cells = NULL;
     int ** ForwardSweep_exceptions = NULL;
@@ -64,6 +66,9 @@ private:
         Fc[2] = W[2]*Vn + PatCell*norm_vec[0];
         Fc[3] = W[3]*Vn + PatCell*norm_vec[1];
     }
+
+    void SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,double* detlaW,double* Fv);
+
 
     void SolveDiag(double** de_diag, double** dt);
 

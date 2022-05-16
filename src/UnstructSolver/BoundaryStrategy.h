@@ -17,6 +17,7 @@ private:
     double fs_Re;
     double fs_Pr;
     double fs_r;
+    double fs_mu;
     const double Cp = 1005.0;
     //
     UnstructTopologyHolder *d_hder = nullptr;
@@ -37,9 +38,10 @@ public:
         fsnd_soundSpeed = d_hder_strategy->fsnd_soundSpeed;
         fs_Temperature = d_hder_strategy->fs_Temperature;
         fs_Ma = d_hder_strategy->fs_mach;
-        fs_Re = d_hder_strategy->fs_Reynolds_number;
-        fs_Pr = d_hder_strategy->fs_Prandtl;
-
+        fs_Re = d_hder_strategy->fs_Re;
+        fs_Pr = d_hder_strategy->fs_Pr;
+        fs_r = powf64(fs_Pr,1.0/3.0);
+        fs_mu = d_hder_strategy->fs_mu;
     }
     //Boundary at wall should be speciall treated when viscosity yields its effect.
     //And also mu should be calculated.
@@ -101,7 +103,7 @@ public:
                 {
                     for(int j = 0;j<d_dim;j++)
                     {
-                        Leftvelocity[i] = U[i][2+j+d_NEQU*lC];
+                        Leftvelocity[j] = U[i][2+j+d_NEQU*lC];
                     }
                     normalVec = curEdge.normal_vector();
                     normalVelocityComponentLeft = Leftvelocity.dot_product(normalVec);
@@ -127,9 +129,10 @@ public:
                 else if (rC == GeomElements::edge3d<2>::BoundaryType::FARFIELD) // Far field
                 {
                     // This is the derivation
-                    Leftvelocity[0] = U[i][2+d_NEQU*lC];
-                    Leftvelocity[1] = U[i][3+d_NEQU*lC];
-
+                    for(int j = 0;j<d_dim;j++)
+                    {
+                        Leftvelocity[j] = U[i][2+j+d_NEQU*lC];
+                    }
                     normalVec = curEdge.normal_vector();
                     normalVelocityComponentLeft = Leftvelocity.dot_product(normalVec);
                     tangenVelocityLeft = Leftvelocity - normalVec * normalVelocityComponentLeft;
@@ -193,7 +196,7 @@ public:
                             U_edge[i][1+d_NEQU*k] = fsnd_pressure;
                             U_edge[i][2+d_NEQU*k] = fsnd_velocity_components[0];
                             U_edge[i][3+d_NEQU*k] = fsnd_velocity_components[1];
-                            mu_edge[i][k] = fsnd_pressure/fsnd_density;
+                            mu_edge[i][k] = fs_mu;
                         }
                     }
                 }

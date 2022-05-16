@@ -30,7 +30,7 @@ public:
     ~LimiterStrategy();
 public:
     // Provided Left and Right Consrevative Storage, compute the Left and Right increment as limiter is computed.
-    virtual void computeLimiter() = 0;
+    virtual void computeLimiter(double** UL,double** UR) = 0;
     // Get Limiter for cell given meshInd,equInd,cellInd.
     virtual double getLimiter(int meshInd, int equInd, int cellInd) = 0;
 

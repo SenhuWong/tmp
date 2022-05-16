@@ -11,29 +11,22 @@
 class Euler2D : public TopologyHolderStrategy
 {
 private:
-    // FreeStream,this should be read from an input file
-    
-    
-
-    // int buff_size;
-    //  Data storage for Cell Variables
-
     // Variables in CELLS  [blk][][cell]
     double **U = NULL; // Conservatives
+
+    //GradU is to be used by both LimiterStrategy and LaminarFluxStrategy, so I leave it in Euler2D.
     GeomElements::vector3d<2, double> **gradU = NULL;
-    double ** UL = NULL;
-    double ** UR = NULL;
+    
     double ** Residual = NULL; // Sum of edge's fluxes
-    double **Spectrum_cell = NULL;
+    double **Spectrum_cell_c = NULL;
 
     // Variables in EDGES  [equ][blk][edge]
-    double ** U_edge = NULL;
-    double ** Flux_edge = NULL;
-    double **Spectrum_edge = NULL;
 
-    // Used for storing Maximum and minimum neighbours for limiter
+    //U_edge is used by both LImiterStrategy and LaminarFluxStrategy, so I leave it here in Euler2D.
+    double ** U_edge = NULL;
+
+
     // LimiterStrategy:
-    LimiterStrategy *d_limiter = NULL;
     FluxStrategy *d_fluxComputer = NULL;
     BoundaryStrategy * d_boundaryHandler = NULL;
     
@@ -75,14 +68,11 @@ public:
             for(int j =0;j<d_hder->nCells(i);j++)
             {
                 auto& curCell = d_hder->blk2D[i].d_localCells[j];
-                dt[i][j] = CFL * curCell.volume()/Spectrum_cell[i][j];
+                dt[i][j] = CFL * curCell.volume()/Spectrum_cell_c[i][j];
             }
         }
     }
 
-    
-    // Gradient computation for each cell and LeftRight Value Computation for each edge
-    void updateEdgeLeftRightValues();
     // Update flux with the corresponding left and right value
     void updateFlux();
     inline double **getU() override
@@ -100,29 +90,16 @@ public:
         return (void**)gradU;
     }
 
-    inline double **getUL() override
-    {
-        return UL;
-    }
-
-    inline double **getUR() override
-    {
-        return UR;
-    }
-
-    inline double **getFluxEdge() override
-    {
-        return Flux_edge;
-    }
+    
 
     inline double **getResidual() override
     {
         return Residual;
     }
 
-    inline double **getSpectrum() override
+    inline double **getSpectrumConvective() override
     {
-        return Spectrum_cell;
+        return Spectrum_cell_c;
     }
 
     inline bool isInvicid() override
@@ -155,9 +132,6 @@ public:
 
         solveSpectralRadius();
 
-        // Get Left right value at edge
-        updateEdgeLeftRightValues();
-
         // Compute fluxsum
         updateFlux();
     }
@@ -168,7 +142,6 @@ public:
         updateEdgeValues();
         solveGradient();
         solveSpectralRadius();
-        updateEdgeLeftRightValues();
         updateFlux();
     }
     

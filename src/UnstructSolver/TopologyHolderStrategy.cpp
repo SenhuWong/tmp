@@ -37,13 +37,18 @@ void TopologyHolderStrategy::set_fs_variable(double Ma, double AOA, double densi
     fs_density = density;
     fs_pressure = pressure;
     fs_eigen_Length = eigenLen;
+    
+    fs_Temperature = fs_pressure/(fs_density*R);
 
+    fs_mu = 1.45e-6*pow(fs_Temperature,1.5)/(fs_Temperature+110);
+    
     fs_soundSpeed = sqrtf64(Gamma * fs_pressure / fs_density);
     fs_velocity_magnitude = fs_mach * fs_soundSpeed;
+
+    fs_Re = fs_density*fs_velocity_magnitude*fs_eigen_Length/fs_mu;
+
     fs_velocity_components[0] = fs_velocity_magnitude * cosf64(fs_AOA);
     fs_velocity_components[1] = fs_velocity_magnitude * sinf64(fs_AOA);
-
-    fs_E = 0.5 * fs_density * std::pow(fs_velocity_magnitude, 2) + fs_pressure / (Gamma - 1);
 }
 
 void TopologyHolderStrategy::update_nondim_variable()
@@ -55,7 +60,6 @@ void TopologyHolderStrategy::update_nondim_variable()
     fsnd_pressure = fs_pressure / fs_pressure;
     fsnd_density = fs_density / fs_density;
     fsnd_soundSpeed = sqrtf64(Gamma);
-    fsnd_E = fs_E * Gamma / pow(fs_soundSpeed, 2);
 
     fs_primVar[0] = fsnd_density;
     fs_primVar[1] = fsnd_pressure;

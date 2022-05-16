@@ -25,7 +25,7 @@ public:
 
     ~Vankatakrishnan_Limiter();
 
-    void computeLimiter(); // cell_ind starts from 0
+    void computeLimiter(double** UL, double** UR); // cell_ind starts from 0
     
     double getLimiter(int meshInd, int equInd, int cellInd);
 
@@ -66,10 +66,8 @@ Vankatakrishnan_Limiter<ndim>::~Vankatakrishnan_Limiter()
     delete[] Umin;
 }
 template<int ndim>
-void Vankatakrishnan_Limiter<ndim>::computeLimiter() // cell_ind starts from 0
+void Vankatakrishnan_Limiter<ndim>::computeLimiter(double **UL,double **UR) // cell_ind starts from 0
 {
-    double **UL = d_hder_strategy->getUL();
-    double **UR = d_hder_strategy->getUR();
     //  FIrst get Umax and Umin
     double **U = d_hder_strategy->getU();
 

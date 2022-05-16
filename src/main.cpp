@@ -626,14 +626,14 @@ void unstruct_main()
         for(int i = 0;i<20001;i++)
         {
             rk_integrator->singleStep(i);
-            if(i%50==0)
+            if(i%5000==0)
             {
                 std::cout<<i<<"\n";
             
 
             }
                 
-            if(i%20000==0)
+            if(i%5000==0)
             {
                 euler->AllCellCommunication(euler->getU());
                 euler->writeCellData("cellDatParallel"+std::to_string(i+1),cur_proc,0,euler->getU());
@@ -663,8 +663,8 @@ void unstruct_main()
             }
         }
         // std::cout<<"Finished?\n";
-        std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-        euler->outPutCp(Cp_name,0);
+        // std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+        // euler->outPutCp(Cp_name,0);
     }
     std::cout<<"MPI BARRIER?\n";
     MPI_Barrier(MPI_COMM_WORLD);

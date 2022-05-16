@@ -76,12 +76,12 @@ Euler2D::Euler2D(UnstructTopologyHolder *hder)
     cur_proc = d_hder->curproc;
     num_proc = d_hder->numproc;
     // Topology holder set
-    d_limiter = new Vankatakrishnan_Limiter<2>(d_hder, this);
+    auto limiter = new Vankatakrishnan_Limiter<2>(d_hder, this);
 #ifdef DEBUG
-    d_limiter->setComm(cur_proc, num_proc);
+    limiter->setComm(cur_proc, num_proc);
 
 #endif // DEBUG
-    d_fluxComputer = new HLLCFluxStrategy(d_hder, this);
+    d_fluxComputer = new HLLCFluxStrategy(d_hder, this, limiter);
     d_fluxComputer->setComm(num_proc, cur_proc);
 
     d_boundaryHandler = new BoundaryStrategy(d_hder,this);
@@ -102,13 +102,9 @@ void Euler2D::registerTopology()
     U_edge = new double *[d_nmesh];
     // With Edge Variables compute gradient
     gradU = new GeomElements::vector3d<2, double> *[d_nmesh];
-    Spectrum_cell = new double *[d_nmesh];
-    // Compute left and right value of Conservative Variables
-    UL = new double *[d_nmesh];
-    UR = new double *[d_nmesh];
-    Spectrum_edge = new double *[d_nmesh];
+    Spectrum_cell_c = new double *[d_nmesh];
+
     // Compute flux and fluxSum
-    Flux_edge = new double *[d_nmesh];
     Residual = new double *[d_nmesh];
 
     // Compute Local dt
@@ -123,14 +119,9 @@ void Euler2D::registerTopology()
         U[i] = new double [d_NEQU*d_hder->nCells(i)];
         Residual[i] = new double [d_NEQU*d_hder->nCells(i)];
         gradU[i] = new GeomElements::vector3d<2, double> [d_NEQU*d_hder->nCells(i)];
-        Spectrum_cell[i] = new double[d_hder->nCells(i)];
+        Spectrum_cell_c[i] = new double[d_hder->nCells(i)];
 
         U_edge[i] = new double [d_NEQU*d_hder->nEdges(i)];
-        UL[i] = new double [d_NEQU*d_hder->nEdges(i)];
-        UR[i] = new double [d_NEQU*d_hder->nEdges(i)];
-        Spectrum_edge[i] = new double[d_hder->nEdges(i)];
-
-        Flux_edge[i] = new double [d_NEQU*d_hder->nEdges(i)];
     }
 }
 
@@ -174,7 +165,7 @@ void Euler2D::ReconstructionInitial()
     {
         for (int k = 0; k < d_hder->nCells(i); k++)
         {
-            Spectrum_cell[i][k] = 0;
+            Spectrum_cell_c[i][k] = 0;
             for (int j = 0; j < d_NEQU; j++)
             {
                 Residual[i][j+d_NEQU*k] = 0;
@@ -182,7 +173,6 @@ void Euler2D::ReconstructionInitial()
         }
     }
     // Limiter related should be set
-    d_limiter->init();
 }
 
 // Boundary and normal edge's conservative update
@@ -228,6 +218,7 @@ void Euler2D::solveGradient()
 
 void Euler2D::solveSpectralRadius()
 {
+    double Spectrum_edge;
     GeomElements::vector3d<2, double> velocity_edge;
     for (int i = 0; i < d_nmesh; i++)
     {
@@ -241,126 +232,20 @@ void Euler2D::solveSpectralRadius()
             double Vn = velocity_edge.dot_product(curEdge.normal_vector());
             int lC = curEdge.lCInd();
             int rC = curEdge.rCInd();
-            Spectrum_edge[i][k] = (std::abs<double>(Vn) + c) * curEdge.area();
-            Spectrum_cell[i][lC] += Spectrum_edge[i][k];
+            Spectrum_edge = (std::abs<double>(Vn) + c) * curEdge.area();
+            Spectrum_cell_c[i][lC] += Spectrum_edge;
             if (rC >= 0)
             {
-                Spectrum_cell[i][rC] += Spectrum_edge[i][k];
+                Spectrum_cell_c[i][rC] += Spectrum_edge;
             }
         }
     }
 }
 
-void Euler2D::updateEdgeLeftRightValues()
-{
-    const double EPSILON = 1.0e-5;
-    // Compute Limiter for each cell
-    // This should be done by a Limiter class
-    d_limiter->computeLimiter();
-    bool hasTrouble = false;
-    // Compute left and right value for each Edge
-    for (int i = 0; i < d_nmesh; i++)
-    {
-        auto &curBlk = d_hder->blk2D[i];
-        for (int k = 0; k < curBlk.nEdges(); k++)
-        {
-
-            auto &curEdge = curBlk.d_localEdges[k];
-            int lc = curEdge.lCInd();
-            int rc = curEdge.rCInd();
-
-            if (lc >= 0 and rc >= 0)
-            {
-                for (int j = 0; j < d_NEQU; j++)
-                {
-                    UL[i][j+d_NEQU*k] = UL[i][j+d_NEQU*k] * d_limiter->getLimiter(i, j, lc) + U[i][j+d_NEQU*lc];
-                }
-                for (int j = 0; j < d_NEQU; j++)
-                {
-                    UR[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] * d_limiter->getLimiter(i, j, rc) + U[i][j+d_NEQU*rc];
-                }
-            }
-            else
-            {
-                if (lc < 0)
-                {
-                    throw std::runtime_error("Left Cell can't be NULL\n");
-                }
-                if (rc == GeomElements::edge3d<2>::BoundaryType::WALL) // Wall, set to be the cell variables
-                {
-                    for (int j = 0; j < d_NEQU; j++)
-                    {
-                        UL[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] = U[i][j+d_NEQU*lc];
-                    }
-                }
-                else if (rc == GeomElements::edge3d<2>::BoundaryType::FARFIELD) // Far_field, set to be the face variables
-                {
-                    for (int j = 0; j < d_NEQU; j++)
-                    {
-                        UL[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] = U_edge[i][j+d_NEQU*k];
-                    }
-                }
-                else
-                {
-                    std::cout << lc << "," << rc << '\n';
-                    std::cout << "SOmething wrong with left and right cell\n";
-                    std::cin.get();
-                }
-            }
-        }
-    }
-    if (hasTrouble)
-    {
-        throw std::runtime_error("Limiter Error");
-    }
-}
 // Update flux with the corresponding left and right value
 void Euler2D::updateFlux()
 {
     d_fluxComputer->computeFlux();
-    // First clear FLuxsum from last iteration
-    for (int i = 0; i < d_nmesh; i++)
-    {
-        for (int j = 0; j < d_NEQU; j++)
-        {
-            for (int k = 0; k < d_hder->nCells(i); k++)
-            {
-                Residual[i][j+d_NEQU*k] = 0;
-            }
-        }
-    }
-    for (int i = 0; i < d_nmesh; i++)
-    {
-        auto &curBlk = d_hder->blk2D[i];
-
-        for (int k = 0; k < d_hder->nEdges(i); k++)
-        {
-
-            auto &curEdge = curBlk.d_localEdges[k];
-            int lc = curEdge.lCInd();
-            int rc = curEdge.rCInd();
-
-            if (lc >= 0) // Left plus right minus
-            {
-                for (int j = 0; j < d_NEQU; j++)
-                {
-                    Residual[i][j+d_NEQU*lc] += Flux_edge[i][j+d_NEQU*k];
-                }
-            }
-            else
-            {
-                std::cout << "left cell ind can't be negative\n";
-                std::cin.get();
-            }
-            if (rc >= 0)
-            {
-                for (int j = 0; j < d_NEQU; j++)
-                {
-                    Residual[i][j+d_NEQU*rc] -= Flux_edge[i][j+d_NEQU*k];
-                }
-            }
-        }
-    }
 }
 
 
