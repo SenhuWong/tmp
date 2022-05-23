@@ -92,21 +92,62 @@ public:
         return d_dim;
     }
 
+    // Set freeStream Variable value
+    void set_fs_variable(double Ma, double AOA, double density, double pressure, double eigenLen);
+    void set_fs_variable2(double Ma, double AOA, double density, double pressure, double Re);
+
+    // Update the nondim variables
+    void update_nondim_variable();
+
+    void AllCellCommunication(double** value);
+
+    void RemoteCellCommunication(double** value);
+
+    void NearCellCommunication(double** value);
+    
+    void getFreeStreamVars(double* out)
+    {
+        for(int i = 0;i <d_NEQU;i++)
+        {
+            out[i] = fs_primVar[i];
+        }
+        out[d_NEQU] = fsnd_soundSpeed;
+    }
+    
+    //Optional Interface for NS Equations.
     virtual void **getGradientT() 
     {
         return nullptr;
     }
 
-    virtual void registerTopology() = 0;
+    virtual double **getSpectrumViscous()
+    {
+        return nullptr;
+    }
+
+    virtual double getMuOverPrCell(int curMesh,int curCell)
+    {
+        return 0;
+    }
+
+    virtual double getMuOverPrEdge(int curMesh,int curEdge)
+    {
+        return 0;
+    }
+
+    virtual double **getMu()
+    {
+        return nullptr;
+    }
+
+    virtual double **getMuEdge()
+    {
+        return nullptr;
+    }
 
 public:
-    // Set freeStream Variable value
-    void set_fs_variable(double Ma, double AOA, double density, double pressure, double eigenLen);
 
-    // Update the nondim variables
-    void update_nondim_variable();
-
-    // Interface for Euler and NS
+    // Interface for both Euler and NS
     virtual double **getU() = 0;
 
     virtual double **getUEdge() = 0;
@@ -117,18 +158,7 @@ public:
 
     virtual double **getSpectrumConvective() = 0;
 
-    virtual double **getSpectrumViscour()
-    {
-        return nullptr;
-    }
-    
     virtual void initializeData() = 0;
-
-    virtual void AllCellCommunication(double** value);
-
-    virtual void RemoteCellCommunication(double** value);
-
-    virtual void NearCellCommunication(double** value);
 
     virtual void preprocessAdvance(int istage) = 0;
 
@@ -143,27 +173,9 @@ public:
     //Especially Requested by BoundaryStrategy.
     virtual bool isInvicid() = 0;
 
-    virtual void getFreeStreamVars(double* out) = 0;
-
-    virtual double getMuOverPr()
-    {
-        return 0;
-    }
-
-    //These should be optinal
-
-    virtual double **getMu()
-    {
-        return nullptr;
-    }
-    // Not necessary.
-    virtual double **getMuEdge()
-    {
-        return nullptr;
-    }
-
 public:
-    //These are not useful but helps to write code
+
+    //These are not useful but helps to debug code.
     void test_communication();
 
     void test_partialcomm();
@@ -175,6 +187,7 @@ public:
         
     void writeCellData(const std::string &filename, int proc, int meshTag, double **dcelldata);
 
+    void writeRawCellData(const std::string &filename, int proc, int meshTag, double **dcelldata);
 
 
 };

@@ -366,7 +366,7 @@ void MeshBlock::writeCellFile2(const std::string& filename, double* cellInfo)
     {
         fout << i + 1 << "=NODAL,";
     }
-    fout << d_dim + 1 << "=CELLCENTERED,)\n";
+    fout << d_dim + 1 << "=CELLCENTERED,\n";
     fout << d_dim + 2 << "=CELLCENTERED)\n";
     for (int j = 0; j < d_dim; j++)
     {

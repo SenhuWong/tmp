@@ -1,3 +1,4 @@
+#pragma once
 #include "TopologyHolderStrategy.h"
 #include "UnstructIntegrator.h"
 #include "toolBox/edge3d_int.h"
@@ -30,18 +31,28 @@ public:
         d_hder(hder), d_hder_strategy(hder_strategy)
     {
         fsnd_density = d_hder_strategy->fsnd_density;
+        std::cout<<"BoundaryStrategy::fsnd_density "<<fsnd_density<<'\n';
         fsnd_pressure = d_hder_strategy->fsnd_pressure;
+        std::cout<<"BoundaryStrategy::fsnd_pressure "<<fsnd_pressure<<'\n';
+        
         for(int i = 0;i<d_dim;i++)
         {
             fsnd_velocity_components[i] = d_hder_strategy->fsnd_velocity_components[i];
         }
         fsnd_soundSpeed = d_hder_strategy->fsnd_soundSpeed;
+        std::cout<<"BoundaryStrategy::fsnd_soundSpeed "<<fsnd_soundSpeed<<'\n';
         fs_Temperature = d_hder_strategy->fs_Temperature;
+        std::cout<<"BoundaryStrategy::fs_Temperature "<<fs_Temperature<<'\n';
         fs_Ma = d_hder_strategy->fs_mach;
+        std::cout<<"BoundaryStrategy::fs_Ma "<<fs_Ma<<'\n';
         fs_Re = d_hder_strategy->fs_Re;
+        std::cout<<"BoundaryStrategy::fs_Re "<<fs_Re<<'\n';
         fs_Pr = d_hder_strategy->fs_Pr;
+        std::cout<<"BoundaryStrategy::fs_Pr "<<fs_Pr<<'\n';
         fs_r = powf64(fs_Pr,1.0/3.0);
+        std::cout<<"BoundaryStrategy::fs_r "<<fs_r<<'\n';
         fs_mu = d_hder_strategy->fs_mu;
+        std::cout<<"BoundaryStrategy::fs_mu "<<fs_mu<<'\n';
     }
     //Boundary at wall should be speciall treated when viscosity yields its effect.
     //And also mu should be calculated.
@@ -64,8 +75,6 @@ public:
         double** U_edge = d_hder_strategy->getUEdge();
         double** U = d_hder_strategy->getU();
 
-        double** mu = d_hder_strategy->getMu();
-        double** mu_edge = d_hder_strategy->getMuEdge();
         // For far field boundary
         double cc = 110.4/fs_Temperature;
         //
@@ -85,7 +94,7 @@ public:
         for (int i = 0; i < d_nmesh; i++)
         {
             auto &curBlk = d_hder->blk2D[i];
-            for (int k = 0; k < curBlk.nEdges(); k++)
+            for (int k = 0; k < d_hder->nEdges(i); k++)
             {
                 auto &curEdge = curBlk.d_localEdges[k];
                 int lC = curEdge.lCInd();
@@ -97,33 +106,14 @@ public:
                     {
                         U_edge[i][j+d_NEQU*k] = (U[i][j+d_NEQU*lC] + U[i][j+d_NEQU*rC]) / 2;
                     }
-                    mu_edge[i][k] = (mu[i][lC] + mu[i][rC]) / 2;
                 }
                 else if (rC == GeomElements::edge3d<2>::BoundaryType::WALL) // Wall
                 {
+                    U_edge[i][0+d_NEQU*k] = U[i][0+d_NEQU*lC];
+                    U_edge[i][1+d_NEQU*k] = U[i][1+d_NEQU*lC];
                     for(int j = 0;j<d_dim;j++)
                     {
-                        Leftvelocity[j] = U[i][2+j+d_NEQU*lC];
-                    }
-                    normalVec = curEdge.normal_vector();
-                    normalVelocityComponentLeft = Leftvelocity.dot_product(normalVec);
-                    tangenVelocityLeft = Leftvelocity - normalVec * normalVelocityComponentLeft;
-                    tangenVelocityComponentLeftSquare = tangenVelocityLeft.L2Square();
-                    if (tangenVelocityLeft.dot_product(normalVec) > 1.0e-11)
-                    {
-                        throw std::runtime_error("Something wrong with Vector computation\n");
-                    }
-                    double T = U_edge[i][1+d_NEQU*k]/U_edge[i][0+d_NEQU*k];
-                    double Tw = T +0.5* fs_r *tangenVelocityComponentLeftSquare/Cp;
-                    double Pw = U_edge[i][1+d_NEQU*k];
-                    double Dw = Pw/Tw;
-                    double muw = (1.0+cc)/(Tw+cc)*powf64(Tw,1.5)*sqrtf64(Gamma)*fs_Ma/fs_Re;
-
-                    U_edge[i][0+d_NEQU*k] = Dw;
-                    U_edge[i][1+d_NEQU*k] = Pw;
-                    for(int j = 2;j<d_dim+2;j++)
-                    {
-                        U_edge[i][j+d_NEQU*k] = 0;
+                        U_edge[i][2+j+d_NEQU*k] = 0;
                     }
                 }
                 else if (rC == GeomElements::edge3d<2>::BoundaryType::FARFIELD) // Far field
@@ -163,8 +153,6 @@ public:
                             U_edge[i][1+d_NEQU*k] = U_edge[i][0+d_NEQU*k] * Cb * Cb / Gamma;
                             U_edge[i][2+d_NEQU*k] = EdgeVelocity[0];
                             U_edge[i][3+d_NEQU*k] = EdgeVelocity[1];
-                            double T = U_edge[i][1+d_NEQU*k]/U_edge[i][0+d_NEQU*k];
-                            mu_edge[i][k] = (1.0+cc)/(T+cc)*powf64(T,1.5)*sqrtf64(Gamma)*fs_Ma/fs_Re;
                         }
                         else
                         {
@@ -176,8 +164,6 @@ public:
                             U_edge[i][1+d_NEQU*k] = U_edge[i][0+d_NEQU*k] * Cb * Cb / Gamma;
                             U_edge[i][2+d_NEQU*k] = Edgevelocity[0];
                             U_edge[i][3+d_NEQU*k] = Edgevelocity[1];
-                            double T = U_edge[i][1+d_NEQU*k]/U_edge[i][0+d_NEQU*k];
-                            mu_edge[i][k] = (1.0+cc)/(T+cc)*powf64(T,1.5)*sqrtf64(Gamma)*fs_Ma/fs_Re;
                         }
                     }
                     else
@@ -188,7 +174,6 @@ public:
                             U_edge[i][1+d_NEQU*k] = U[i][1+d_NEQU*lC];
                             U_edge[i][2+d_NEQU*k] = U[i][2+d_NEQU*lC];
                             U_edge[i][3+d_NEQU*k] = U[i][3+d_NEQU*lC];
-                            mu_edge[i][k] = mu[i][lC];
                         }
                         else
                         {
@@ -196,7 +181,6 @@ public:
                             U_edge[i][1+d_NEQU*k] = fsnd_pressure;
                             U_edge[i][2+d_NEQU*k] = fsnd_velocity_components[0];
                             U_edge[i][3+d_NEQU*k] = fsnd_velocity_components[1];
-                            mu_edge[i][k] = fs_mu;
                         }
                     }
                 }

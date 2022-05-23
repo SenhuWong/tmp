@@ -2,6 +2,8 @@
 #include "UnstructIntegrator.h"
 #include "TopologyHolderStrategy.h"
 #include <algorithm>
+#include <iostream>
+#include "toolBox/edge3d_int.h"
 LUSGSStrategy::LUSGSStrategy(UnstructTopologyHolder *hder, TopologyHolderStrategy* hder_strategy)
     :TimeStrategy(hder,hder_strategy)
 {
@@ -103,24 +105,7 @@ void LUSGSStrategy::initialize()
 
 void LUSGSStrategy::preprocessUpdate()
 {
-    //Do nothing cuz U is obtained from W_scratch.
-    return;
-    const double Gamma = 1.4;
-    double **U = d_hder_strategy->getU();
-    for(int i = 0;i<d_nmesh;i++)
-    {
-        for(int k = 0; k< d_hder->nCells(i); k++)
-        {
-            double VMSquare = 0;
-            for (int l = 0; l < d_dim; l++)
-            {
-                VMSquare += U[i][l + 2+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
-                W_scratch[i][l + 2+d_NEQU*k] = U[i][0+d_NEQU*k] * U[i][l + 2+d_NEQU*k];
-            }
-            W_scratch[i][0+d_NEQU*k] = U[i][0+d_NEQU*k];
-            W_scratch[i][1+d_NEQU*k] = U[i][1+d_NEQU*k] / (Gamma - 1) + 0.5 * U[i][0+d_NEQU*k] * VMSquare;
-        }
-    }
+
 }
 
 void LUSGSStrategy::singleStep(int curStage)
@@ -138,8 +123,7 @@ void LUSGSStrategy::singleStepSerial(int curStep)
 
 void LUSGSStrategy::postprocessUpdate()
 {
-    return;
-    d_hder_strategy->cleaning(W_scratch);
+    
 }
 
 
@@ -223,11 +207,14 @@ void LUSGSStrategy::UpdateSerial()
     d_hder_strategy->SolveTime(d_stableDt,d_CFL_number);
     
     SolveDiagOperator();
-
+    // std::cout<<"Entering ForwardSweep\n";
+    // std::cin.get();
     SolveForwardSweepSerial();
-
+    // std::cout<<"Entering BackwardSweep\n";
+    // std::cin.get();
     SolveBackwardSweepSerial();
-
+    // std::cin.get();
+    // std::cout<<"Entering UpdatePrimitiveVariable\n";
     UpdatePrimitiveVariable();
 }
 
@@ -367,7 +354,7 @@ void LUSGSStrategy::SolveDiag(double** de_diag, double** dt)
             {
                 std::cout<<"Is not invicid NMSL"<<d_hder_strategy->isInvicid()<<'\n';
                 std::cin.get();
-                double ** spectrum_viscous = d_hder_strategy->getSpectrumViscour();
+                double ** spectrum_viscous = d_hder_strategy->getSpectrumViscous();
                 diag += spectrum_viscous[i][k];
             }
             for(int j = 0;j<d_NEQU;j++)
@@ -384,11 +371,6 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             double** W_scratch ,double** deltaW0,double* DF,
             int ForB,int cellOffset)
 {
-    
-
-    double** mu = d_hder_strategy->getMu();
-    // if(cur_proc==0)
-    // std::cout<<"curCell is "<<curCell<<'\n';
     auto& edg = d_hder->blk2D[curMesh].d_localEdges[curEdge];
     double Wp[d_NEQU];
     double W[d_NEQU];
@@ -398,16 +380,30 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
     double Fc[d_NEQU];
 
     double rA;
-    double Fv[d_NEQU];
+    // double Fv[d_NEQU];
     double DFc[d_NEQU];
     int lC = edg.lCInd();
     int rC = edg.rCInd();
-    
-    if(curCell + cellOffset==lC)
+    // std::cout<<"solvedf called\n";
+    if(curCell + cellOffset==lC)//Current cell at left side
     {
-        if((rC>=0 and rC<lC) && ForB)//If ForB is 1, then calculate when curCell(lC) >the other cell(rC)
-        //If ForB is 0, then calculate when curCell(lC) < the other cell(rC)
+        bool dothis = false;
+        // std::cout<<"current left,"<<"rC<lC"<<(rC<lC)<<" == "<< "ForB"<<ForB<<" gives "<< ((rC<lC) ==  ForB)<<'\n';
+        // if(ForB==1)//Forward Sweep,only do this when current cell > another
+        // {
+        //     dothis = rC<lC;
+        // }
+        // else//Backward Sweep,only do this when current cell < another
+        // {
+        //     dothis = rC>lC;
+        // }
+        // if(rC>=0 and dothis)
+        if(rC>=0 and ((int(rC<lC))==(ForB)))
         {
+            if(ForB==1)
+            {
+            //If ForB is 1, then calculate when curCell(lC) >the other cell(rC)
+            //If ForB is 0, then calculate when curCell(lC) < the other cell(rC)
             if(rC >= d_hder->nCells(curMesh))
             {
                 rC = rC - d_hder->nCells(curMesh);
@@ -423,7 +419,7 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             GeomElements::vector3d<2,double> norm = edg.normal_vector();
             ConservativeParam2ConvectiveFlux(W,Fc,norm);
             ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
-            SolveViscousFlux(curMesh,curCell,curEdge,rC,dW,Fv);
+            // SolveViscousFlux(curMesh,curCell,curEdge,rC,2*ForB-1,dW,Fv);
 
             //Newly added:compute Viscous FLux
             //i is lc and j is rc
@@ -436,7 +432,8 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             }
             for(int j = 0;j<d_NEQU;j++)
             {
-                DF[j] = 0.5*(DFc[j]-Fv[j])*edg.area();
+                DF[j] = 0.5*(DFc[j])*edg.area();
+            }
             }
         }
         else
@@ -449,8 +446,21 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
     }
     else if(curCell + cellOffset==rC)
     {
-        if((lC<rC)&& ForB)
+        bool dothis = false;
+        // if(ForB==1)
+        // {
+        //     dothis = lC<rC;
+        // }
+        // else
+        // {
+        //     dothis = lC>rC;
+        // }
+        // std::cout<<"current right,"<<"lC<rC"<<(lC<rC)<<" == "<< "ForB"<<ForB<<" gives "<< ((lC<rC) ==  ForB)<<'\n';
+        // if(dothis)
+        if((int(lC<rC)) == (ForB))
         {
+            if(ForB==1)
+            {
             if(lC>=d_hder->nCells(curMesh))
             {
                 lC = lC - d_hder->nCells(curMesh);
@@ -466,14 +476,15 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             GeomElements::vector3d<2,double> norm = edg.normal_vector();
             ConservativeParam2ConvectiveFlux(W,Fc,norm);
             ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
-            SolveViscousFlux(curMesh,curCell,curEdge,lC,dW,Fv);
+            // SolveViscousFlux(curMesh,curCell,curEdge,lC,2*ForB-1,dW,Fv);
             for(int j = 0;j<d_NEQU;j++)
             {
                 DFc[j] =  Fc[j] - Fcp[j];
             }
             for(int j = 0;j<d_NEQU;j++)
             {
-                DF[j] = 0.5*(DFc[j] - Fv[j])*edg.area();
+                DF[j] = 0.5*(DFc[j])*edg.area();
+            }
             }
         }
         else
@@ -490,7 +501,7 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
     }
 }
 
-void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,double* detlaW,double* Fv)
+void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,int ForB,double* detlaW,double* Fv)
 {
     const double Gamma = 1.4;
     const double OMEGAN = 1.5;
@@ -501,9 +512,8 @@ void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int ano
     auto& curC = curBlk.d_localCells[curCell];
     GeomElements::vector3d<2,double> centerLine;
     //It is impossible to have anotherCell at first negative to be raised amid 0 and nCells 
-    if(anotherCell >0)
+    if(anotherCell >=0)
     {
-        anotherCell = anotherCell > d_hder->nCells(curMesh) ? anotherCell-d_hder->nCells(curMesh) : anotherCell;
         auto& anotherC = curBlk.d_localCells[anotherCell];
         centerLine = anotherC.center() - curC.center();
     }
@@ -511,20 +521,24 @@ void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int ano
     {
         centerLine = curE.center() - curC.center();
     }
-    GeomElements::vector3d<2,double> curVelocity(U[curMesh][2+d_NEQU*curCell],U[curMesh][3+d_NEQU*curCell]);
+    if(anotherCell<0)
+    {
+        throw std::runtime_error("Another Cell is below 0\n");
+    }
+    GeomElements::vector3d<2,double> curVelocity(U[curMesh][2+d_NEQU*anotherCell],U[curMesh][3+d_NEQU*anotherCell]);
     GeomElements::vector3d<2,double> norm = curE.normal_vector();
     double Vn = curVelocity.dot_product(norm);
-    double c = sqrt(Gamma*U[curMesh][1+d_NEQU*curCell]/U[curMesh][0+d_NEQU*curCell]);
+    double c = sqrtf64(Gamma * U[curMesh][1+d_NEQU*anotherCell] / U[curMesh][0+d_NEQU*anotherCell]);
     
     rA  = OMEGAN*(fabsf64(Vn)+c);
     if(!d_hder_strategy->isInvicid())
     {
         rA += std::max<double>(4/(3*U[curMesh][0+d_NEQU*curCell]),Gamma/U[curMesh][0+d_NEQU*curCell])*
-        (d_hder_strategy->getMuOverPr())/centerLine.L2Square();
+        (d_hder_strategy->getMuOverPrCell(curMesh,curCell))/centerLine.L2Square();
     }
     for(int j = 0;j<d_NEQU;j++)
     {
-        Fv[j] = rA*detlaW[j];
+        Fv[j] = ForB*rA*detlaW[j];
     }
 }
 
@@ -607,7 +621,7 @@ void LUSGSStrategy::SolveBoundaryForwardSweep(double** diag,
             for(int j = 0;j<d_NEQU;j++)
             {
                 deltaW1[i][j+d_NEQU*cellId] = (-Residual[i][j+d_NEQU*cellId]-dFi[j])/diag[i][j+d_NEQU*cellId];
-;              }   
+;           }   
         }
     }
 }
@@ -682,10 +696,107 @@ void LUSGSStrategy::SolveLocalBackwardSweep(double** diag,
         }
     }
 }
+
+void LUSGSStrategy::SolveDfSimple(double *W,double* DW,
+                    const GeomElements::cell3d<2>&anotherCell,
+                    const GeomElements::edge3d<2>& curEdge,
+                    int LorR, double* dF)
+{
+    double Wp[5];
+    double Fc[5];
+    double Fcp[5];
+    double Ds = curEdge.area();
+    GeomElements::vector3d<2,double> norm= curEdge.normal_vector();
+    norm[0] = -norm[0];
+    norm[1] = -norm[1];
+    for(int j = 0;j<d_NEQU;j++)
+    {
+        Wp[j] = W[j] + DW[j];
+    }
+    ConservativeParam2ConvectiveFlux(W,Fc,norm);
+    ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
+
+    for(int j = 0;j<d_NEQU;j++)
+    {
+        dF[j] = 0.5*(Fcp[j] - Fc[j])*Ds;
+    }
+}
+// void LUSGSStrategy::SolveForwardSweep(double** diag,
+//                     double** W_scratch,double** deltaW1)
+// {
+//     double** Residual = d_hder_strategy->getResidual();
+//     double dFi[d_NEQU];
+//     double dF[d_NEQU];
+//     double anotherW[d_NEQU];
+//     double anotherDWs[d_NEQU];
+//     for(int i = 0;i<d_nmesh;i++)
+//     {
+//         auto& curBlk = d_hder->blk2D[i];
+//         for(int k = 0;k<d_hder->nCells(i);k++)
+//         {
+//             auto& curCell = curBlk.d_localCells[k];
+//             for(int j = 0;j<d_NEQU;j++)
+//             {
+//                 dFi[j] = 0;
+//             }
+//             for(int j = 0;j<curCell.edge_size();j++)
+//             {
+//                 auto& curEdge  = curBlk.d_localEdges[curCell.edgeInd(j)];
+//                 int lC = curEdge.lCInd();
+//                 int rC = curEdge.rCInd();
+//                 if(k==lC)//Left Side
+//                 {
+//                     if(rC>=0 and rC<k)
+//                     {
+//                         auto& anotherCell = curBlk.d_localCells[rC];
+//                         for(int l = 0;l<d_NEQU;l++)
+//                         {
+//                             anotherW[l] = W_scratch[i][l+d_NEQU*rC];
+//                             anotherDWs[l] = deltaW1[i][l+d_NEQU*rC];
+//                         }
+//                         SolveDfSimple(anotherW,anotherDWs,anotherCell,curEdge,1,dF);
+//                         for(int l =0;l<d_NEQU;l++)
+//                         {
+//                             dFi[l] += dF[l];
+//                         }
+//                     }
+
+//                 }
+//                 else if(k==rC)
+//                 {
+//                     if(lC<k)
+//                     {
+//                         auto& anotherCell = curBlk.d_localCells[lC];
+//                         for(int l = 0;l<d_NEQU;l++)
+//                         {
+//                             anotherW[l] = W_scratch[i][l+d_NEQU*lC];
+//                             anotherDWs[l] = deltaW1[i][l+d_NEQU*lC];
+//                         }
+//                         SolveDfSimple(anotherW,anotherDWs,anotherCell,curEdge,-1,dF);
+//                         for(int l =0;l<d_NEQU;l++)
+//                         {
+//                             dFi[l] += dF[l];
+//                         }                        
+//                     }
+//                 }
+//                 else
+//                 {
+//                     std::cout<<"Something Wronmg\n";
+//                     std::cin.get();
+//                 }
+//             }
+//             for(int j = 0;j<d_NEQU;j++)
+//             {
+//                 deltaW1[i][j+d_NEQU*k] = (-Residual[i][j+d_NEQU*k]-dFi[j])/diag[i][j+d_NEQU*k];
+//             }
+//         }
+//     }
+// }
+
 void LUSGSStrategy::SolveForwardSweep(double** diag,
                     double** W_scratch,double** deltaW1)
 {
-    int ForB = 1;
+    int ForB = 1;//1 indicates forward sweep,that is dF=0 when cur < another
     double** Residual = d_hder_strategy->getResidual();
     double dFi[d_NEQU];
     double dF[d_NEQU];
@@ -714,12 +825,83 @@ void LUSGSStrategy::SolveForwardSweep(double** diag,
         }
     }
 }
+
+// void LUSGSStrategy::SolveBackwardSweep(double** diag,
+//                         double** W_scratch,double** deltaW1,double** deltaW)
+// {
+//     double dFi[d_NEQU];
+//     double dF[d_NEQU];
+//     double anotherW[d_NEQU];
+//     double anotherDW[d_NEQU];
+//     for(int i = 0;i<d_nmesh;i++)
+//     {
+//         auto& curBlk = d_hder->blk2D[i];
+//         for(int k = 0;k<d_hder->nCells(i);k++)
+//         {
+//             auto& curCell = curBlk.d_localCells[k];
+//             for(int j = 0;j<d_NEQU;j++)
+//             {
+//                 dFi[j] = 0;
+//             }
+//             for(int j = 0;j<curCell.edge_size();j++)
+//             {
+//                 auto& curEdge  = curBlk.d_localEdges[curCell.edgeInd(j)];
+//                 int lC = curEdge.lCInd();
+//                 int rC = curEdge.rCInd();
+//                 if(k==lC)//Left Side
+//                 {
+//                     if(rC>=0 and rC>k)
+//                     {
+//                         auto& anotherCell = curBlk.d_localCells[rC];
+//                         for(int l = 0;l<d_NEQU;l++)
+//                         {
+//                             anotherW[l] = W_scratch[i][l+d_NEQU*rC];
+//                             anotherDW[l] = deltaW[i][l+d_NEQU*rC];
+//                         }
+//                         SolveDfSimple(anotherW,anotherDW,anotherCell,curEdge,1,dF);
+//                         for(int l =0;l<d_NEQU;l++)
+//                         {
+//                             dFi[l] += dF[l];
+//                         }
+//                     }
+//                 }
+//                 else if(k==rC)
+//                 {
+//                     if(lC>k)
+//                     {
+//                         auto& anotherCell = curBlk.d_localCells[lC];
+//                         for(int l = 0;l<d_NEQU;l++)
+//                         {
+//                             anotherW[l] = W_scratch[i][l+d_NEQU*lC];
+//                             anotherDW[l] = deltaW[i][l+d_NEQU*lC];
+//                         }
+//                         SolveDfSimple(anotherW,anotherDW,anotherCell,curEdge,-1,dF);
+//                         for(int l =0;l<d_NEQU;l++)
+//                         {
+//                             dFi[l] += dF[l];
+//                         }                        
+//                     }
+//                 }
+//                 else
+//                 {
+//                     std::cout<<"Something Wronmg\n";
+//                     std::cin.get();
+//                 }
+//             }
+//             for(int j = 0;j<d_NEQU;j++)
+//             {
+//                 deltaW[i][j+d_NEQU*k] = deltaW1[i][j+d_NEQU*k] - dFi[j]/diag[i][j+d_NEQU*k];
+//             }
+//         }
+//     }
+// }
+
 void LUSGSStrategy::SolveBackwardSweep(double** diag,
                         double** W_scratch,double** deltaW1,double** deltaW)
 {
     int ForB = 0;
-    double dFi[d_NEQU];
-    double dF[d_NEQU];
+    double dFi[d_NEQU]={0};
+    double dF[d_NEQU]={0};
     for(int i = 0;i<d_nmesh;i++)
     {
         auto& curBlk = d_hder->blk2D[i];

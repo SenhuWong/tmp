@@ -37,10 +37,6 @@ private:
     void registerTopology();
 
 public:
-    UnstructTopologyHolder *getIntegrator()
-    {
-        return d_hder;
-    }
 
     Euler2D(UnstructTopologyHolder *hder); // I will add an input_db to read the freestream variable value.
 
@@ -105,15 +101,6 @@ public:
     inline bool isInvicid() override
     {
         return true;
-    }
-
-    inline void getFreeStreamVars(double* out)
-    {
-        for(int i = 0;i <d_NEQU;i++)
-        {
-            out[i] = fs_primVar[i];
-        }
-        out[d_NEQU] = fsnd_soundSpeed;
     }
 
 

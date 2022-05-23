@@ -2,6 +2,7 @@
 #include <set>
 #include "TopologyHolderStrategy.h"
 #include "toolBox/vector3d.h"
+#include "toolBox/edge3d_int.h"
 class LUSGSStrategy : public TimeStrategy
 {
 private:
@@ -51,6 +52,11 @@ private:
 
     void UpdateConservativeForRecvCells();
 
+    void SolveDfSimple(double *W,double* DW,
+                    const GeomElements::cell3d<2>&anotherCell,
+                    const GeomElements::edge3d<2>& curEdge,
+                    int LorR, double* dF);
+
     void ConservativeParam2ConvectiveFlux(double* W, double* Fc, GeomElements::vector3d<2,double>& norm_vec)
     {
         double Gamma = 1.4;
@@ -67,7 +73,7 @@ private:
         Fc[3] = W[3]*Vn + PatCell*norm_vec[1];
     }
 
-    void SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,double* detlaW,double* Fv);
+    void SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,int ForB,double* detlaW,double* Fv);
 
 
     void SolveDiag(double** de_diag, double** dt);

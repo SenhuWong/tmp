@@ -271,7 +271,7 @@ public:
 
             if(d_dim==2)
             {
-                cur_ub2D->setLocalStructure(pt2d,cel2d,edg2d,nnode,ncell,nedge,0);
+                cur_ub2D->setLocalStructure(pt2d,cel2d,edg2d,nnode,ncell,nedge,nedge);
                 //No need to specify local communication
             }
             delete[] xyzs;

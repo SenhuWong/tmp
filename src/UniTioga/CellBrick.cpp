@@ -196,9 +196,23 @@ void Brick4Cobalt3D::reOrdering()
 	{
 		// std::cout << "TetraHedron\n";
 		size = 4;
-		for (int i = 0; i < 3; i++)
+		if(eachNodesDir[0]==1)
 		{
-			nodes[i] = eachNodes[0][i];
+			for (int i = 0; i < 3; i++)
+			{
+				nodes[i] = eachNodes[0][i];
+			}
+		}
+		else if(eachNodesDir[0] ==-1)
+		{
+			for (int i = 0;i<3;i++)
+			{
+				nodes[2-i] = eachNodes[0][i];
+			}
+		}
+		else
+		{
+			throw std::runtime_error("Cant have no traingle face inside a tetra\n");
 		}
 		for (int i = 0; i < 3; i++)
 		{
@@ -231,9 +245,23 @@ void Brick4Cobalt3D::reOrdering()
 				break;
 			}
 		}
-		for (int i = 0; i < 4; i++)
+		if(eachNodesDir[bottom]==1)
 		{
-			nodes[i] = eachNodes[bottom][i];
+			for (int i = 0; i < 4; i++)
+			{
+				nodes[i] = eachNodes[bottom][i];
+			}
+		}
+		else if(eachNodesDir[bottom]==-1)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				nodes[3-i] = eachNodes[bottom][i];
+			}
+		}
+		else
+		{
+			throw std::runtime_error("cant by pryramid\n");
 		}
 		for (int i = 0; i < 3; i++)
 		{
@@ -278,9 +306,23 @@ void Brick4Cobalt3D::reOrdering()
 			}
 		}
 		//Fill in the first 3
-		for (int i = 0; i < 3; i++)
+		if(eachNodesDir[TriIndex[0]]==1)
 		{
-			nodes[i] = eachNodes[TriIndex[0]][i];
+			for (int i = 0; i < 3; i++)
+			{
+				nodes[i] = eachNodes[TriIndex[0]][i];
+			}
+		}
+		else if(eachNodesDir[TriIndex[0]]==-1)
+		{
+			for (int i = 0;i<3;i++)
+			{
+				nodes[2-i] = eachNodes[TriIndex[0]][i];
+			}
+		}
+		else
+		{
+			throw std::runtime_error("Cant be prism\n");
 		}
 		//Fill in the next 3 with Quadrilateral
 		int indexes[4];
@@ -351,9 +393,23 @@ void Brick4Cobalt3D::reOrdering()
 	{
 		// std::cout<<"Brick\n";
 		size = 8;
-		for (int i = 0; i < 4; i++)
+		if(eachNodesDir[0]==1)
 		{
-			nodes[i] = eachNodes[0][i];
+			for (int i = 0; i < 4; i++)
+			{
+				nodes[i] = eachNodes[0][i];
+			}	
+		}
+		else if(eachNodesDir[0]==-1)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				nodes[3-i] = eachNodes[0][i];
+			}
+		}
+		else
+		{
+			throw std::runtime_error("Cant be a beick\n");
 		}
 		//We don't know if it is 0-3 1-2 or 0-1 2-3
 		int indexes[4];

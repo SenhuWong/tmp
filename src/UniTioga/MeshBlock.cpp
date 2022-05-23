@@ -231,6 +231,8 @@ void MeshBlock::tagBoundary()
         int k = 0;
         int nvert;
         int ni;
+        // std::ofstream fout;
+        // fout.open("FoundNegative_"+std::to_string(meshtag)+"_"+std::to_string(myid));
         for (int n = 0; n < ntypes; n++)
         {
             nvert = nv[n];
@@ -246,6 +248,14 @@ void MeshBlock::tagBoundary()
                     }
                 }
                 vol = computeVolume(d_dim, xv, nvert);
+                // if(vol <=0 )
+                // {
+                //     fout<<"Cell: type "<<n<<" with "<<nvert<<" verts with volume being "<<vol<<"\n";
+                //     for(int m = 0;m<nvert;m++)
+                //     {
+                //         fout<<"\tnode "<<m<<": "<<xv[m][0]<<","<<xv[m][1]<<","<<xv[m][2]<<'\n';
+                //     }
+                // }
                 //%TODO::Resolution scale is always set to 1
                 cellRes[k] = (vol * resolutionScale);
                 for (int m = 0; m < nvert; m++)
@@ -256,9 +266,12 @@ void MeshBlock::tagBoundary()
                 ++k;
             }
             
+            
         }
+        // fout.close();
 
     }
+    writeCellFile2("cellResImmediate", cellRes);
 
     //Make inverse map
     for (int i = 0; i < nnodes; i++)

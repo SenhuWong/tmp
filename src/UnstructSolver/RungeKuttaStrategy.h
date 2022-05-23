@@ -1,15 +1,7 @@
 #pragma once
 
 #include "TimeStrategy.h"
-struct FlowParamHolder
-{
-    double density;
-    double pressure;
-    double soundSpeed;
-    double velocity[3];
-};
-void computeFlowParams(double ***W, int mesh_ind, int cell_ind, int dim, FlowParamHolder *hder);
-
+#include <time.h>
 class RungeKuttaStrategy : public TimeStrategy
 {
 private:
@@ -86,8 +78,11 @@ public:
 
     void singleStep(int curStep)
     {
+        // clock_t start = clock();
         // These are thing should be done when ir==0
         preprocessUpdate();
+        // clock_t end = clock();
+        // std::cout<<"Time cost for preprocess is "<<end-start<<'\n';
         for (int i = 0; i < d_nstage; i++)
         {
             Update(i);
@@ -170,6 +165,7 @@ private:
         {
             for (int k = 0; k < d_hder->nCells(i); k++)
             {
+                int iOffset = d_NEQU*k;
                 double VMSquare = 0;
                 for (int l = 0; l < d_dim; l++)
                 {
@@ -212,7 +208,6 @@ private:
                         // W_scratch is in conservative form
                         U[i][j+d_NEQU*k] = W_scratch[i][j][k] + d_stage_efficient[iStage] * stableDt[i][k] * (-Residual[i][j+d_NEQU*k]) / curCell.volume();
                     }
-                    // W[i][0][k] is the same
                     double VMSquare = 0;
                     for (int l = 0; l < d_dim; l++)
                     {

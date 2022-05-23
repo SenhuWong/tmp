@@ -8,7 +8,7 @@
 
 class UnstructBlock
 {
-protected:
+public:
     int d_nPs = 0;
     int d_nCs = 0;
     int d_nEs = 0;
@@ -231,14 +231,9 @@ public:
 
     //This is used only for output and therefore don't care about performance
 
-    std::set<int,std::less<int>>* getRecvIndSet()
+    virtual std::set<int,std::less<int>>* getRecvIndSet()
     {
-        std::set<int,std::less<int>>* recvInds =  new std::set<int,std::less<int>>[1];
-        for(auto iter = d_to_recv.begin();iter!=d_to_recv.end();iter++)
-        {
-            recvInds->insert(iter->d_localId);
-        }
-        return recvInds;
+        return nullptr;
     }
 
     std::vector<CommunicationCell> &getRecvCells()
@@ -259,6 +254,26 @@ public:
     GeomElements::cell3d<ndim> *d_localCells = NULL;
     GeomElements::edge3d<ndim> *d_localEdges = NULL;
 
+
+    // std::set<int,std::less<int>>* getRecvIndSet() override
+    // {
+    //     std::cout<<"Allocating for recvindset\n";
+    //     std::set<int,std::less<int>>* recvNodeInds =  new std::set<int,std::less<int>>[1];
+    //     for(int i = 0;i<d_recvRemote->layerSize();i++)
+    //     {
+    //         int offset = d_recvRemote->getCellInd(i);
+    //         auto iter = d_to_recv.begin() + offset;
+    //         int cellId = iter->d_localId;
+    //         GeomElements::cell3d<ndim>& curCell = d_localCells[cellId];
+    //         for(int j = 0;j<curCell.size();j++)
+    //         {
+    //             int nodeId = curCell.pointInd(j);
+    //             recvNodeInds->insert(nodeId);
+    //         }
+    //     }
+    //     return recvNodeInds;
+    // }
+    
     //std::vector<int> localInd2AggregatedInd;
     void write_grd(const std::string &filename, int meshtag, int cur_proc)
     {
@@ -362,7 +377,6 @@ public:
     void writeEdgeLeftRight(const std::string &filename, int meshtag, int cur_proc)
     {
         std::cout << "WriteEdgeLeftRight called\n";
-        // std::cin.get();
         std::ofstream fout;
         std::string local_filename = filename + std::to_string(meshtag) + std::to_string(cur_proc);
         fout.open(local_filename);

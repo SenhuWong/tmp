@@ -1,19 +1,14 @@
+#pragma once
 #include "FluxStrategy.h"
 #include "UnstructIntegrator.h"
-struct FlowParamHolder
-{
-    double density;
-    double pressure;
-    double soundSpeed;
-    double velocity[3];
-};
-void computeFlowParams(double ***W, int mesh_ind, int cell_ind, int dim, FlowParamHolder *hder);
+#include <algorithm>
+#include "math.h"
+#include <fstream>
 class LaminarFluxStrategy : public FluxStrategy
 {
 private:
     double fs_Temperature;
     double fs_Pr;
-    double fs_Prt;
     double fs_Ma;
     double fs_Re;
 
@@ -22,19 +17,8 @@ private:
     double ** mu = NULL;
     double ** mu_edge = NULL;
 public:
-    // void setMu(double** mu_in)
-    // {
-    //     mu = mu_in;
-    // }
-    // void setMuEdge(double** mu_edge_in)
-    // {
-    //     mu_edge = mu_edge_in;
-    // }
-    // void setSpectrum(double** Spectrum_cell_v_in)
-    // {
-    //     Spectrum_cell_v = Spectrum_cell_v_in;
-    // }
-    double **getMu(double** mu_edge)
+
+    double **getMu()
     {
         return mu;
     }
@@ -63,10 +47,13 @@ public:
             Spectrum_cell_v[i] = new double[d_hder->nCells(i)];
         }
         fs_Temperature = d_hder_strategy->fs_Temperature;
+        std::cout<<"LaminarFluxStrategy::fs_Temperature "<<fs_Temperature<<'\n';
         fs_Pr = d_hder_strategy->fs_Pr;
-        fs_Prt = d_hder_strategy->fs_Prt;
+        std::cout<<"LaminarFluxStrategy::fs_Pr "<<fs_Pr<<'\n';
         fs_Ma = d_hder_strategy->fs_mach;
+        std::cout<<"LaminarFluxStrategy::fs_Ma "<<fs_Ma<<'\n';
         fs_Re = d_hder_strategy->fs_Re;
+        std::cout<<"LaminarFluxStrategy::fs_Re "<<fs_Re<<'\n';
     }
 
 
@@ -76,6 +63,7 @@ public:
         const double Gamma = 1.4;
         double T;
         double** U = d_hder_strategy->getU();
+        double** U_edge = d_hder_strategy->getUEdge();
         for(int i = 0;i<d_nmesh;i++)
         {
             for(int k = 0;k<d_hder->nCells(i);k++)
@@ -83,19 +71,42 @@ public:
                 T = U[i][1+d_NEQU*k]/U[i][0+d_NEQU*k];
                 mu[i][k] = (1.0+cc)/(T+cc)*powf64(T,1.5)*sqrtf64(Gamma)*fs_Ma/fs_Re;
             }
+            for(int k = 0;k<d_hder->nEdges(i);k++)
+            {
+                T = U_edge[i][1+d_NEQU*k]/U_edge[i][0+d_NEQU*k];
+                mu_edge[i][k] = (1.0+cc)/(T+cc)*powf64(T,1.5)*sqrtf64(Gamma)*fs_Ma/fs_Re;
+            }
         }
     }
 
-    void getMuOverPr(int curMesh,int curCell)
+    void computeSpectrum()
+    {
+
+    }
+
+    double getMuOverPrEdge(int curMesh,int curEdge)
+    {
+        return mu_edge[curMesh][curEdge]/fs_Pr;
+    }
+
+    double getMuOverPrCell(int curMesh,int curCell)
     {
         return mu[curMesh][curCell]/fs_Pr;
     }
 
     void computeFlux()
     {
+        std::cout<<"Do nothing\n";
+        return;
+    }
+
+    void computeFlux(int istage)
+    {
+        // std::string localFilename = "recorder_edge_v"+std::to_string(istage)+"_"+std::to_string(cur_proc);
+        // std::ofstream fout;
+        // fout.open(localFilename);
         const double Gamma = 1.4;
         //Get mu_edge from FluxFlow
-        double** mu_edge = d_hder_strategy->getMu();
         double** U = d_hder_strategy->getU();
         double** U_edge = d_hder_strategy->getUEdge();
         double** Residual = d_hder_strategy->getResidual();
@@ -105,38 +116,58 @@ public:
         GeomElements::vector3d<2,double>** gradT = (GeomElements::vector3d<2,double>**)d_hder_strategy->getGradientT();
         for(int i = 0; i < d_nmesh; i++)
         {
+            // fout << "Mesh "<< i << " --------------------------------------------\n";
             auto& curBlk = d_hder->blk2D[i];
             GeomElements::vector3d<2,double> average;
             GeomElements::vector3d<2,double> Left2Right;
             for(int k = 0; k < d_hder->nEdges(i); k++)
             {
+                // fout << "Edge "<< k << " ---";
                 auto& curEdge = curBlk.d_localEdges[k];
                 int lC = curEdge.lCInd();
                 int rC = curEdge.rCInd();
+                // fout << "LC "<< lC << " ---"<<"RC "<< rC << " ---\n";
                 double efficient = 2.0/3.0*mu_edge[i][k];
+                // fout << "\tmu_edge :"<<mu_edge[i][k]<<'\n';
+                // fout << "\tefficient :"<< efficient<<'\n';
                 //First compute Gradient at Edge.
                 if(rC>=0)//Inner
                 {
+                    // fout <<"\t("<<curBlk.d_localCells[lC].center()[0]<<","<<curBlk.d_localCells[lC].center()[1]<< ")->("<<curBlk.d_localCells[rC].center()[0] << ","<<curBlk.d_localCells[rC].center()[1]<<")\n";
                     Left2Right = curBlk.d_localCells[rC].center() - curBlk.d_localCells[lC].center();
+                    // fout <<"\t("<<Left2Right[0]<<","<<Left2Right[1]<<")\n";
                     for(int j = 0; j<d_dim;j++)
                     {
+                        // fout <<"var "<<j<<'\n';
+                        // fout <<"\tLeft Grad:"<<gradU[i][2+j+d_NEQU*lC][0]<<","<<gradU[i][2+j+d_NEQU*lC][1]<<'\n';
+                        // fout <<"\tRight Grad:"<<gradU[i][2+j+d_NEQU*rC][0]<<","<<gradU[i][2+j+d_NEQU*rC][1]<<'\n';
                         average = (gradU[i][2+j+d_NEQU*lC] + gradU[i][2+j+d_NEQU*rC])*0.5;
+                        // fout <<"\taverage:"<<average[0]<<","<<average[1]<<'\n';
                         gradEdge[j] = average + Left2Right*((U[i][2+j+d_NEQU*rC]-U[i][2+j+d_NEQU*lC] - average.dot_product(Left2Right))/Left2Right.L2Square());
+                        // fout <<"\tRight value:"<<U[i][2+j+d_NEQU*rC]<<";"<<"Left value:"<<U[i][2+j+d_NEQU*lC]<<'\n';
+                        // fout <<"\tgradEdge:"<<gradEdge[j][0]<<","<<gradEdge[j][1]<<'\n';
                     }
+                    // fout <<"var "<<d_dim<<'\n';
+                    // fout <<"\tLeft Grad:"<<gradT[i][lC][0]<<","<<gradT[i][lC][1]<<'\n';
+                    // fout <<"\tRight Grad:"<<gradT[i][lC][0]<<","<<gradT[i][lC][1]<<'\n';
                     average = (gradT[i][lC] + gradT[i][rC])*0.5;
+                    // fout <<"\taverage:"<<average[0]<<","<<average[1]<<'\n';
                     double rightT = U[i][1+d_NEQU*rC]/U[i][0+d_NEQU*rC];
                     double leftT = U[i][1+d_NEQU*lC]/U[i][0+d_NEQU*lC];
                     gradEdge[d_dim] = average + Left2Right*((rightT - leftT - average.dot_product(Left2Right))/Left2Right.L2Square());
+                    // fout <<"\tRight value:"<<rightT<<";"<<"Left value:"<<leftT<<'\n';
+                    // fout <<"\tgradEdge:"<<gradEdge[d_dim][0]<<","<<gradEdge[d_dim][1]<<'\n';
                 }
                 else
                 {
+                    Left2Right = curEdge.center() - curBlk.d_localCells[lC].center();
                     for(int j = 0;j <d_dim;j++)
                     {
                         gradEdge[j] = gradU[i][2+j+d_NEQU*lC];
                     }
                     if(rC==GeomElements::edge3d<2>::BoundaryType::WALL)
                     {
-                        gradEdge[d_dim] = {0,0,0};
+                        gradEdge[d_dim] = GeomElements::vector3d<2,double>(0,0);
                     }
                     else if(rC==GeomElements::edge3d<2>::BoundaryType::FARFIELD)
                     {
@@ -149,9 +180,15 @@ public:
                 {
                     GeomElements::vector3d<2,double> tao[2];
                     GeomElements::vector3d<2,double> velocity_edge(U_edge[i][2+d_NEQU*k],U_edge[i][3+d_NEQU*k]);
+                    
                     double taoxx = efficient*(2.0*gradEdge[0][0] - gradEdge[1][1]);
                     double taoyy = efficient*(2.0*gradEdge[1][1] - gradEdge[0][0]);
                     double taoxy = mu_edge[i][k]*(gradEdge[0][1] + gradEdge[1][0]);
+                    // fout<<"tao\n";
+                    // fout<<'\t'<<efficient<<" * (2.0*"<<gradEdge[0][0] <<"-"<< gradEdge[1][1]<<") = "<<taoxx<<'\n';
+                    // fout<<'\t'<<efficient<<" * (2.0*"<<gradEdge[1][1] <<"-"<< gradEdge[1][1]<<") = "<<taoxx<<'\n';
+                    // fout<<'\t'<<efficient<<" * (2.0*"<<gradEdge[0][1] <<"+"<< gradEdge[1][0]<<") = "<<taoxx<<'\n';
+                    
                     tao[0][0] = taoxx;
                     tao[1][1] = taoyy;
                     tao[0][1] = taoxy;
@@ -159,10 +196,26 @@ public:
 
                     double qx = - Gamma/(Gamma -1) *(mu_edge[i][k]/fs_Pr) * gradEdge[d_dim][0];
                     double qy = - Gamma/(Gamma -1) *(mu_edge[i][k]/fs_Pr) * gradEdge[d_dim][1];
+                    GeomElements::vector3d<2,double> normal = curEdge.normal_vector();
                     Fv[0] = 0.0;
-                    Fv[1] = GeomElements::vector3d<2,double>(velocity_edge.dot_product(tao[0])-qx,velocity_edge.dot_product(tao[1])-qy).dot_product(curEdge.normal_vector())*curEdge.area();
-                    Fv[2] = tao[0].dot_product(curEdge.normal_vector())*curEdge.area();
-                    Fv[3] = tao[1].dot_product(curEdge.normal_vector())*curEdge.area();
+                    Fv[1] = ((velocity_edge[0]*taoxx+velocity_edge[1]*taoxy)*normal[0]
+                    +(velocity_edge[0]*taoxy+velocity_edge[1]*taoyy)*normal[1])*curEdge.area();
+                    Fv[2] = (taoxx*normal[0] + taoxy*normal[1])*curEdge.area();
+                    Fv[3] = (taoxy*normal[0] + taoyy*normal[1])*curEdge.area();
+                    // Fv[1] = GeomElements::vector3d<2,double>(velocity_edge.dot_product(tao[0])-qx,velocity_edge.dot_product(tao[1])-qy).dot_product(curEdge.normal_vector())*curEdge.area();
+                    //Fv[2] = tao[0].dot_product(curEdge.normal_vector())*curEdge.area();
+                    // Fv[3] = tao[1].dot_product(curEdge.normal_vector())*curEdge.area();
+                    // for(int j = 0;j<4;j++)
+                    // {
+                    //     if(abs(Fv[j])>0.8)
+                    //     {
+                    //         std::cout<<j<<"'s wrong"<<Fv[j]<<"\n";
+                    //         std::cout<<"Tao:"<<taoxx<<" "<<taoyy<<" "<<taoxy<<'\n';
+                    //         std::cout<<"qx:"<<qx<<" "<<qy<<'\n';
+                    //         std::cout<<velocity_edge[0]<<" "<<velocity_edge[1]<<'\n';
+                    //         // std::cin.get();
+                    //     }
+                    // }
                     if (lC >= 0) // Left plus right minus
                     {
                         for (int j = 0; j < d_NEQU; j++)
@@ -185,8 +238,8 @@ public:
                 }
             }
         }
+        // fout.close();
         delete[] gradEdge;
     }
-        // if (cur_proc == 0)
-    void SolveViscousFlux()
+
 };

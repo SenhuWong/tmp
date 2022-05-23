@@ -6,6 +6,9 @@ project(SAMRAITEST)
 #set(CMAKE_EXE_LINKER_FLAGS "-no-pie")
 #set(POSITION_INDEPENDENT_CODE = True)
 
+enable_language(Fortran)
+
+message("cmake_fortran_copmplier_env_var=${CMAKE_FORTRAN_COMPILER_ENV_VAR}")
 set(SAMRAI_DIR ~/thirdParty/SAMRAI/share/SAMRAI/cmake)
 set(HDF5_DIR ~/thirdParty/HDF5/cmake)
 

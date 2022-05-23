@@ -13,6 +13,7 @@
 
 #include "UnstructSolver/UnstructIntegrator.h"
 #include "UnstructSolver/Euler2D.h"
+#include "UnstructSolver/ViscousFlow2D.h"
 #include "UnstructSolver/RungeKuttaStrategy.h"
 #include "UnstructSolver/LU_SGS_Strategy.h"
 #include "reader/CobaltReader.h"
@@ -59,7 +60,7 @@ int tioga_main()
     tg->setMexclude(&mexclude);
     bool backgrounded = false;
     bool backgrounded2D = false;
-    bool backgrounded3D = true;
+    bool backgrounded3D = false;
     if (backgrounded)
     {
         if(backgrounded2D)
@@ -195,6 +196,8 @@ int tioga_main()
     tg->registerFromFeeder(rd);
     
     tg->profile();
+    MPI_Finalize();
+    return 1;
     tg->reResolution();
     
     tg->performConnectivity();
@@ -512,6 +515,120 @@ int samrai_main(int argc, char *argv[])
     return num_failures;
 }
 
+void unstruct_serial_v()
+{
+    UnstructReader* rd = new UnstructReader[1];
+    // rd->setOverSign(-2);
+    // rd->setWallSign(-1);
+    // rd->addFile("naca0012.grd");
+    rd->setOverSign(-2);
+    rd->setWallSign(-1);
+    rd->addFile("mix_element_laminar.grd");
+    rd->setDim(2);
+    std::cin.get();
+    rd->readAll();
+
+    std::cout<<"ReadAll done\n";
+    std::cin.get();
+    rd->writeFiles();
+    int* nc;
+    int** indC;
+    rd->takeBoundary(-1,&nc,&indC);
+    UnstructTopologyHolder* integrator = new UnstructTopologyHolder(rd);
+    std::cout<<"Holder initailization done\n";
+    std::cin.get();
+    ViscousFlow2D* flower = new ViscousFlow2D(integrator);
+    flower->test_unwantedSweep(indC,nc);
+    std::cout<<"Flower initialization done\n";
+    std::cin.get();
+    //RungeKuttta
+    bool use_implicit = false;
+    if(!use_implicit)
+    {
+        RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,flower,5);
+        rk_integrator->initialize();
+        for(int i = 0;i<100;i++)
+        {
+            rk_integrator->singleStepSerial(i);
+            if(i%500==0)
+            {
+                std::cout<<i<<"\n";
+                flower->writeCellData("cellDataSerial_"+std::to_string(i),0,0,flower->getU());
+            }
+        }
+    }
+}
+
+void unstruct_parallelv()
+{
+    MPI_Init(NULL,NULL);
+    int num_proc;
+    int cur_proc;
+    MPI_Comm_size(MPI_COMM_WORLD,&num_proc);
+    MPI_Comm_rank(MPI_COMM_WORLD,&cur_proc);
+    CobaltReader *rd = new CobaltReader[1];
+    rd->setOverSign(-2);
+    rd->setWallSign(-1);
+    // rd->addFile("1.grd");
+    rd->addFile("mix_element_laminar.grd");
+    // rd->addFile("naca0012.grd");
+    rd->setDim(2);
+    rd->setComm(cur_proc,num_proc);
+    // rd->setOverSign(-2);
+    // rd->setWallSign(-1);
+    //rd->setOverSign(-2147483647);
+    //rd->setWallSign(-2);
+    rd->readAll();
+
+    
+    
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    rd->writeFiles();
+    MPI_Barrier(MPI_COMM_WORLD);
+    rd->performCommunication();
+    UnstructTopologyHolder* integrator = new UnstructTopologyHolder(rd);
+    integrator->arrange_communication();
+    MPI_Barrier(MPI_COMM_WORLD);
+    integrator->write("Meta");
+    //
+    //std::cout<<integrator->relatedProcs.size()<<"--------------------------"<<'\n';
+    ViscousFlow2D* flower = new ViscousFlow2D(integrator);
+
+    flower->test_communication();
+    flower->test_partialcomm();
+    
+    // flower->outPutNondim("NOndim",cur_proc);
+    
+    bool use_implicit = false;
+    if(!use_implicit)
+    {
+        RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,flower,5);
+        rk_integrator->initialize();
+        simpleTimer timeIs;
+        for(int i = 0;i<10;i++)
+        {
+            
+            rk_integrator->singleStep(i);
+            if(i%500==0)
+            {
+
+            }
+            if(i%5000==0)
+            {
+                std::cout<<i<<"\n";
+                flower->AllCellCommunication(flower->getU());
+                flower->writeCellData("cellDatParallel"+std::to_string(i+1),cur_proc,0,flower->getU());   
+            }
+        }
+        std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+        flower->outPutCp(Cp_name,0);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Finalize();
+
+}
+
 void unstruct_serial()
 {
     UnstructReader* rd = new UnstructReader[1];
@@ -559,7 +676,7 @@ void unstruct_serial()
         LUSGSStrategy* lusgs_integrator = new LUSGSStrategy(integrator,euler);
         lusgs_integrator->initialize();
         simpleTimer timeIs;
-        for(int i = 0;i<20001;i++)
+        for(int i = 0;i<10001;i++)
         {
             
             lusgs_integrator->singleStepSerial(i);
@@ -570,11 +687,11 @@ void unstruct_serial()
             }
         }
 
+
     }
-    
-    
-    
+    std::cout<<"MPI BARRIER?\n";
 }
+    
 
 void unstruct_main()
 {
@@ -584,15 +701,18 @@ void unstruct_main()
     MPI_Comm_size(MPI_COMM_WORLD,&num_proc);
     MPI_Comm_rank(MPI_COMM_WORLD,&cur_proc);
     CobaltReader *rd = new CobaltReader[1];
-    rd->setOverSign(-1);
-    rd->setWallSign(-4);
-    // rd->addFile("1.grd");
-    rd->addFile("rae2822_euler.grd");
+    rd->addFile("naca0012.grd");
+    rd->setOverSign(-2);
+    rd->setWallSign(-1);
+    
+
+    // rd->setOverSign(-1);
+    // rd->setWallSign(-4);
+    // rd->addFile("rae2822_euler.grd");
+
     // rd->addFile("naca0012.grd");
     rd->setDim(2);
     rd->setComm(cur_proc,num_proc);
-    // rd->setOverSign(-2);
-    // rd->setWallSign(-1);
     //rd->setOverSign(-2147483647);
     //rd->setWallSign(-2);
     rd->readAll();
@@ -617,13 +737,13 @@ void unstruct_main()
     
     // euler->outPutNondim("NOndim",cur_proc);
     
-    bool use_implicit = false;
+    bool use_implicit = true;
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,euler,5);
         rk_integrator->initialize();
         
-        for(int i = 0;i<20001;i++)
+        for(int i = 0;i<5001;i++)
         {
             rk_integrator->singleStep(i);
             if(i%5000==0)
@@ -647,24 +767,24 @@ void unstruct_main()
         simpleTimer timeIs;
         LUSGSStrategy* lusgs = new LUSGSStrategy(integrator,euler);
         lusgs->initialize();
-        
-        for(int i = 0;i<20001;i++)
+        for(int i = 0;i<10001;i++)
         {
+            
             lusgs->singleStep(i);
             
-            // if(i%100==0)
-            // {
-            //     std::cout<<i<<'\n';
-            // }
+
+                
+     
             if(i%5000==0)
             {
+                std::cout<<i<<'\n';
                 euler->AllCellCommunication(euler->getU());
                 euler->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,euler->getU());
             }
         }
-        // std::cout<<"Finished?\n";
-        // std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-        // euler->outPutCp(Cp_name,0);
+        std::cout<<"Finished?\n";
+        std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+        euler->outPutCp(Cp_name,0);
     }
     std::cout<<"MPI BARRIER?\n";
     MPI_Barrier(MPI_COMM_WORLD);
@@ -711,7 +831,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            unstruct_main();
+            unstruct_parallelv();
         }
     }
 }

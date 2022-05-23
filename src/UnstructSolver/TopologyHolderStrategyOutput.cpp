@@ -445,7 +445,16 @@ void TopologyHolderStrategy::writeCellData(const std::string &filename, int proc
     
     fout << "TITLE =\"Tioga output\"\n";
     fout << "VARIABLES=\"X\",\"Y\",";
-    fout << "\"Density\",\"MomentX\",\"MomentY\",\"Energy\",\"Pressure\"\n";
+    if(d_dim==3)
+    {
+        fout << "\"Z\",";
+    }
+    fout << "\"Density\",\"Pressure\",\"U\",\"V\",\n";
+    if(d_dim==3)
+    {
+        fout << "\"W\",";
+    }
+    fout << "\"Cp\",\"Ma\"";
     int nnodes = d_hder->nPoints(meshTag);
     int ncells = d_hder->nCells(meshTag);
     fout << "ZONE T=\"VOL_MIXED\",N=" << nnodes << " E=" << ncells;
@@ -456,11 +465,11 @@ void TopologyHolderStrategy::writeCellData(const std::string &filename, int proc
     {
         fout << i + 1 << "=NODAL,";
     }
-    for (int i = 0; i < d_NEQU; i++)
+    for (int i = 0; i < d_NEQU + 1; i++)
     {
         fout << d_dim + 1 + i << "=CELLCENTERED,";
     }
-    fout << d_dim + d_NEQU + 1 << "=CELLCENTERED)\n";
+    fout << d_dim + d_NEQU + 2 << "=CELLCENTERED)\n";
     for (int j = 0; j < d_dim; j++)
     {
         for (int i = 0; i < nnodes; i++)
@@ -475,16 +484,25 @@ void TopologyHolderStrategy::writeCellData(const std::string &filename, int proc
             fout << dcelldata[meshTag][i - d_dim+d_NEQU*j] << '\n';
         }
     }
-    for (int j = 0; j < d_hder->nCells(meshTag); j++)
+    double fs_velocityMag = (fsnd_velocity_components[0]*fsnd_velocity_components[0]+fsnd_velocity_components[1]*fsnd_velocity_components[1]);
+
+    for(int j = 0;j <d_hder->nCells(meshTag);j++)
     {
-        double VM = 0;
-        for (int l = 0; l < d_dim; l++)
-        {
-            VM += powf64(dcelldata[meshTag][l + 1+d_NEQU*j] / dcelldata[meshTag][0+d_NEQU*j], 2);
-        }
-        double pressure = (Gamma - 1) * (dcelldata[meshTag][d_dim + 1+d_NEQU*j] - 0.5 * dcelldata[meshTag][0+d_NEQU*j] * VM);
-        fout << pressure << '\n';
+        double Cp = 2*(dcelldata[meshTag][1 + d_NEQU*j] - fsnd_pressure)/fs_velocityMag;
+        fout << Cp <<'\n';
     }
+    for(int j =0;j < d_hder->nCells(meshTag);j++)
+    {
+        double c = sqrtf64(dcelldata[meshTag][1+d_NEQU*j]/dcelldata[meshTag][0+d_NEQU*j]);
+        double velocityMag = 0;
+        for(int k = 0;k<d_dim;k++)
+        {
+            velocityMag += dcelldata[meshTag][2+k+d_NEQU*j]*dcelldata[meshTag][2+k+d_NEQU*j];
+        }
+        velocityMag = sqrtf64(velocityMag);
+        fout <<velocityMag/c<<'\n';
+    }
+
     for (int i = 0; i < ncells; i++)
     {
         for (int j = 0; j < d_hder->blk2D[meshTag].d_localCells[i].size(); j++)
@@ -499,5 +517,65 @@ void TopologyHolderStrategy::writeCellData(const std::string &filename, int proc
     }
     fout.close();
     return;
+}
+
+void TopologyHolderStrategy::writeRawCellData(const std::string &filename, int proc, int meshTag, double **dcelldata)
+{
+    
+    std::string local_filename = filename + "_"+std::to_string(meshTag+1)+"_" + std::to_string(proc+1);
+    std::ofstream fout;
+    fout.open(local_filename,std::ios::out);
+    
+    
+    if (!fout.is_open())
+    {
+        std::cout << "Open file failure\n";
+        return;
+    }
+    
+    fout << "TITLE =\"Tioga output\"\n";
+    fout << "VARIABLES=\"X\",\"Y\",";
+    if(d_dim==3)
+    {
+        fout << "\"Z\",";
+    }
+    fout << "\"Value\"\n";
+    int nnodes = d_hder->nPoints(meshTag);
+    int ncells = d_hder->nCells(meshTag);
+    fout << "ZONE T=\"VOL_MIXED\",N=" << nnodes << " E=" << ncells;
+    fout << " ET = QUADRILATERAL, F = FEBLOCK\n";
+    fout << "VARLOCATION =  (";
+    
+    for (int i = 0; i < d_dim; i++)
+    {
+        fout << i + 1 << "=NODAL,";
+    }
+    fout << d_dim + + 1 << "=CELLCENTERED)\n";
+    for (int j = 0; j < d_dim; j++)
+    {
+        for (int i = 0; i < nnodes; i++)
+        {
+            fout << d_hder->blk2D[meshTag].d_localPoints[i][j] << '\n';
+        }
+    }
+
+    for (int j = 0; j < d_hder->nCells(meshTag); j++)
+    {
+        fout << dcelldata[meshTag][j] << '\n';
+    }
+
+    for (int i = 0; i < ncells; i++)
+    {
+        for (int j = 0; j < d_hder->blk2D[meshTag].d_localCells[i].size(); j++)
+        {
+            fout << d_hder->blk2D[meshTag].d_localCells[i].pointInd(j) + 1 << '\t';
+        }
+        for (int j = 0; j < 4 - d_hder->blk2D[meshTag].d_localCells[i].size(); j++)
+        {
+            fout << d_hder->blk2D[meshTag].d_localCells[i].pointInd(d_hder->blk2D[meshTag].d_localCells[i].size() - 1) + 1 << '\t';
+        }
+        fout << '\n';
+    }
+    fout.close();
 }
 

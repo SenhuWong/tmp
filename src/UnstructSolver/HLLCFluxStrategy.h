@@ -12,7 +12,7 @@ struct FlowParamHolder
     double soundSpeed;
     double velocity[3];
 };
-void computeFlowParams(double ***W, int mesh_ind, int cell_ind, int dim, FlowParamHolder *hder);
+
 class HLLCFluxStrategy : public FluxStrategy
 {
 public:

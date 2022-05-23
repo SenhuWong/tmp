@@ -12,50 +12,28 @@
 class ViscousFlow2D : public TopologyHolderStrategy
 {
 private:
-    // Variables in CELLS  [blk][][cell]
-    double **U = NULL; // Conservatives
-
-    //GradU is to be used by both LimiterStrategy and LaminarFluxStrategy, so I leave it in Euler2D.
+    double **U = NULL;
     GeomElements::vector3d<2, double> **gradU = NULL;
     GeomElements::vector3d<2, double> **gradT = NULL;
-    
-    double **Residual = NULL; // Sum of edge's fluxes
-    double **Spectrum_cell_c = NULL;
-
-    // Variables in EDGES  [equ][blk][edge]
-
-    //U_edge is used by both LImiterStrategy and LaminarFluxStrategy, so I leave it here in Euler2D.
     double ** U_edge = NULL;
 
-
-    // LimiterStrategy:
     FluxStrategy *d_cfluxComputer = NULL;
     LaminarFluxStrategy *d_vfluxComputer = NULL;
-    
     BoundaryStrategy * d_boundaryHandler = NULL;
 
-    //Not used yet
-    
-    
-    
-    
     double **Spectrum_cell_c = NULL;
     double **Spectrum_cell_v = NULL;
 
-    double ** Residual = NULL; // Sum of edge's fluxes
-    // Variables in EDGES  [equ][blk][edge]
+    double ** Residual = NULL;
     
 
 private:
-    // These should be called in the constructor given inputDatabase
-    //  Allocate Data Storage
     void registerTopology();
 
 public:
-    UnstructTopologyHolder *getIntegrator()
-    {
-        return d_hder;
-    }
+
+    //Interfaces from TopologyHolderStrategy:
+
 
     ViscousFlow2D(UnstructTopologyHolder *hder); // I will add an input_db to read the freestream variable value.
 
@@ -73,49 +51,74 @@ public:
     // Boundary and normal edge's conservative update
     void updateEdgeValues();
 
-    void solveGradient();
+    void solveGradient(int istage);
 
-    void solveSpectralRadius();
-
-    void SolveTime(double** dt, double CFL)
+    void solveSpectralRadius()
     {
-        for(int i = 0;i<d_nmesh;i++)
+        double Spectrum_edge;
+        GeomElements::vector3d<2, double> velocity_edge;
+        for (int i = 0; i < d_nmesh; i++)
         {
-            auto& curBlk = d_hder->blk2D[i];
-            for(int k =0;k<d_hder->nCells(i);k++)
+            auto &curBlk = d_hder->blk2D[i];
+            for (int k = 0; k < d_hder->nEdges(i); k++)
             {
-                auto& curCell = curBlk.d_localCells[k];
-                dt[i][k] = CFL * curCell.volume()/(Spectrum_cell_c[i][k]+Spectrum_cell_v[i][k]);
+                auto &curEdge = curBlk.d_localEdges[k];
+                velocity_edge[0] = U_edge[i][2+d_NEQU*k];
+                velocity_edge[1] = U_edge[i][3+d_NEQU*k];
+                double c = sqrt(Gamma * U_edge[i][1+d_NEQU*k] / U_edge[i][0+d_NEQU*k]);
+                double Vn = velocity_edge.dot_product(curEdge.normal_vector());
+                int lC = curEdge.lCInd();
+                int rC = curEdge.rCInd();
+                Spectrum_edge = (std::abs(Vn) + c) * curEdge.area();
+                Spectrum_cell_c[i][lC] += Spectrum_edge;
+                if (rC >= 0)
+                {
+                    Spectrum_cell_c[i][rC] += Spectrum_edge;
+                }
+                auto& leftCell = curBlk.d_localCells[lC];
+                Spectrum_edge = std::max<double>(4/(3.0*U_edge[i][0+d_NEQU*k]),Gamma/U_edge[i][0+d_NEQU*k])*d_vfluxComputer->getMuOverPrEdge(i,k)*curEdge.area()*curEdge.area();
+                Spectrum_cell_v[i][lC] += Spectrum_edge / leftCell.volume();
+                if(rC >= 0)
+                {
+                    auto& rightCell = curBlk.d_localCells[rC];
+                    Spectrum_cell_v[i][rC] += Spectrum_edge /  rightCell.volume();
+                }
             }
         }
     }
 
-    double getMuOverPr() override
+
+    double getMuOverPrEdge(int curMesh,int curEdge) override
     {
-        return d_vfluxComputer->getMuOverPr();
+        return d_vfluxComputer->getMuOverPrEdge(curMesh,curEdge);
     }
 
+    double getMuOverPrCell(int curMesh,int curCell) override
+    {
+        return d_vfluxComputer->getMuOverPrCell(curMesh,curCell);
+    }
 
-    // Update flux with the corresponding left and right value
-    void updateFlux();
+    void updateFlux(int istage);
+
+    inline bool isInvicid() override
+    {
+        return false;
+    }
+
+    //Mandatory Interfaces(Getters): 
     inline double **getU() override
     {
         return U;
     }
 
-    inline double**getSpectrumViscour() override
+    inline double **getUEdge() override
     {
-        return Spectrum_cell_v;
+        return U_edge;
     }
 
     inline void **getGradientPrimitive() override
     {
         return (void**)gradU;
-    }
-
-    inline void **getGradientT() override
-    {
-        return (void**)gradT;
     }
 
     inline double **getResidual() override
@@ -126,6 +129,16 @@ public:
     inline double **getSpectrumConvective() override
     {
         return Spectrum_cell_c;
+    }
+    //Override Interfaces(Getters):
+    inline void **getGradientT() override
+    {
+        return (void**)gradT;
+    }
+
+    inline double**getSpectrumViscous() override
+    {
+        return Spectrum_cell_v;
     }
 
     inline double **getMu() override
@@ -138,18 +151,20 @@ public:
         return d_vfluxComputer->getMuEdge();
     }
 
-    // This is intended to be called by TimeStrategy,should be an interface.
+    //Mandatory Interfaces(Requested by timeStrategy)
     void preprocessAdvance(int istage)
     {
-        ReconstructionInitial();
         // Communicate between buffered Cells.
         AllCellCommunication(getU());
-        // For each cell compute mu.
 
-        // Get conservative variables at edge
+        // Reconstruction Init
+        ReconstructionInitial();
+
         updateEdgeValues();
 
-        solveGradient();
+        solveGradient(istage);
+
+        d_vfluxComputer->computeMu();
 
         //SpectralRadius need to add viscos terms, but I am not sure how.
         solveSpectralRadius();
@@ -160,19 +175,60 @@ public:
 
         // Get flux from left right value(or boundary)
         // And compute fluxsum
-        updateFlux();
+        updateFlux(istage);
     }
 
     void preprocessAdvanceSerial(int istage)
     {
         ReconstructionInitial();
+
         updateEdgeValues();
-        solveGradient();
+
+        solveGradient(istage);
+
+        d_vfluxComputer->computeMu();
+
+        //SpectralRadius need to add viscos terms, but I am not sure how.
         solveSpectralRadius();
-        updateFlux();
+        
+
+        // writeEdgeValue("LeftValue"+std::to_string(istage)+"stage",WL);
+        // writeEdgeValue("RightValue"+std::to_string(istage)+"stage",WR);
+
+        // Get flux from left right value(or boundary)
+        // And compute fluxsum
+        updateFlux(istage);
+        return;
+        d_vfluxComputer->computeMu();
+        writeCellData("PrimVar"+std::to_string(istage),cur_proc,0,U);
+        writeRawCellData("mu_cell"+std::to_string(istage),cur_proc,0,getMu());
+        ReconstructionInitial();
+        updateEdgeValues();
+        solveGradient(istage);
+        solveSpectralRadius();
+        writeRawCellData("spectrum_c"+std::to_string(istage),cur_proc,0,Spectrum_cell_c);
+        writeRawCellData("spectrum_v"+std::to_string(istage),cur_proc,0,Spectrum_cell_v);
+        updateFlux(istage);
     }
     
-   
+    void SolveTime(double** dt, double CFL)
+    {
+        for(int i = 0;i<d_nmesh;i++)
+        {
+            auto& curBlk = d_hder->blk2D[i];
+            for(int k =0;k<d_hder->nCells(i);k++)
+            {
+                auto& curCell = curBlk.d_localCells[k];
+                dt[i][k] = CFL * curCell.volume()/(Spectrum_cell_c[i][k]+4.0*Spectrum_cell_v[i][k]);
+            }
+        }
+    }
+
+    void postprocessAdvance()
+    {
+        //Do nothing;
+    }
+
 
     void cleaning(double **W0)
     {
@@ -189,12 +245,6 @@ public:
         }
     }
 
-    void postprocessAdvance()
-    {
-        //This should do stuff like:
-        //compute mu with updated 
-    }
-
-   
+    
     void outPutCp(std::string& filename, int mesh_ind);
 };

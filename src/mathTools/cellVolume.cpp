@@ -1,7 +1,10 @@
 //This is only for 2D
 #include<iostream>
 #include"vector3d.h"
-
+extern "C"
+{
+	void cellvolume_(double*, double[][3], int[][6], int[][24], int*, int*);
+}
 const double TOL = 0.0000000001;
 double triangle_area(double* p1,double* p2,double*p3)
 {
@@ -87,56 +90,56 @@ double scalarProduct(double* a, double* b, double* c)
 	return scalarProducts;
 }
 
-void findCellVolume(double& vol, double coord[8][3],int numverts[][6], int faceInfo[][24], int* nface, int* nvert)
+void findCellVolume(double& vol, double coord[8][3],int numverts[4][6], int faceInfo[4][24],int itype, int* nface, int* nvert)
 {
 	vol = 0;
 	for (int i = 0; i < *nface; i++)
 	{
-		if (numverts[0][i] == 3)//This face has 3 vert
+		if (numverts[itype][i] == 3)//This face has 3 vert
 		{
 			//c's index
-			int inode = faceInfo[0][4 * i + 2] -1 ;
+			int inode = faceInfo[itype][4 * i + 2] -1 ;
 			Vector3D c = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
-			//std::cout << "inode is " << inode << " , " << c[0] << " " << c[1] << " " << c[2] << '\n';
-			inode = faceInfo[0][4 * i + 1] - 1;
+			std::cout << "inode is " << inode << " , " << c[0] << " " << c[1] << " " << c[2] << '\n';
+			inode = faceInfo[itype][4 * i + 1] - 1;
 			Vector3D b = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
-			//std::cout << "inode is " << inode << " , " << b[0] << " " << b[1] << " " << b[2] << '\n';
-			inode = faceInfo[0][4 * i] -1;
+			std::cout << "inode is " << inode << " , " << b[0] << " " << b[1] << " " << b[2] << '\n';
+			inode = faceInfo[itype][4 * i] -1;
 			Vector3D a = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
-			//std::cout << "inode is " << inode << " , " << a[0] << " " << a[1] << " " << a[2] << '\n';
-			vol = vol - 0.5 * c.BoxProduct(a, b);
-			//std::cout <<"face triangle's " << vol << '\n';
+			std::cout << "inode is " << inode << " , " << a[0] << " " << a[1] << " " << a[2] << '\n';
+			vol = vol - 0.5 * a.BoxProduct(b, c);
+			std::cout <<"face triangle's " << vol << '\n';
 		}
-		else if (numverts[0][i] == 4)//This face has 4 vert
+		else if (numverts[itype][i] == 4)//This face has 4 vert
 		{
 			double aa[3], ba[3], ca[3],da[3];
 			
 			
-			int inode = faceInfo[0][4 * i + 3] -1;
+			int inode = faceInfo[itype][4 * i + 3] -1;
 			Vector3D d = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
 			da[0] = coord[inode][0];
 			da[1] = coord[inode][1];
 			da[2] = coord[inode][2];
-			//std::cout << "inode is " << inode << " , " << d[0] << " " << d[1] << " " << d[2] << '\n';
-			inode = faceInfo[0][4 * i + 2] -1;
+			std::cout << "inode is " << inode << " , " << d[0] << " " << d[1] << " " << d[2] << '\n';
+			inode = faceInfo[itype][4 * i + 2] -1;
 			Vector3D c = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
 			ca[0] = coord[inode][0];
 			ca[1] = coord[inode][1];
 			ca[2] = coord[inode][2];
-			//std::cout << "inode is " << inode << " , " << c[0] << " " << c[1] << " " << c[2] << '\n';
-			inode = faceInfo[0][4 * i + 1] -1;
+			std::cout << "inode is " << inode << " , " << c[0] << " " << c[1] << " " << c[2] << '\n';
+			inode = faceInfo[itype][4 * i + 1] -1;
 			ba[0] = coord[inode][0];
 			ba[1] = coord[inode][1];
 			ba[2] = coord[inode][2];
 			Vector3D b = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
-			//std::cout << "inode is " << inode << " , " << b[0] << " " << b[1] << " " << b[2] << '\n';
-			inode = faceInfo[0][4 * i] -1;
+			std::cout << "inode is " << inode << " , " << b[0] << " " << b[1] << " " << b[2] << '\n';
+			inode = faceInfo[itype][4 * i] -1;
 			Vector3D a = Vector3D(coord[inode][0], coord[inode][1], coord[inode][2]);
 			aa[0] = coord[inode][0];
 			aa[1] = coord[inode][1];
 			aa[2] = coord[inode][2];
-			//std::cout << "inode is " << inode << " , " << a[0] << " " << a[1] << " " << a[2] << '\n';
-			if (false)
+			std::cout << "inode is " << inode << " , " << a[0] << " " << a[1] << " " << a[2] << '\n';
+			if (true)
 			{
 				if (abs(c.BoxProduct(a, b) - scalarProduct(aa, ba, ca)) < TOL)
 				{
@@ -159,20 +162,26 @@ void findCellVolume(double& vol, double coord[8][3],int numverts[][6], int faceI
 					std::cout << d.BoxProduct(b, c) << '\t' << scalarProduct(ba, ca, da) << '\t' << d.BoxProduct(b, c) - scalarProduct(ba, ca, da) << '\n';
 				}
 			}
-			/*
-			vol = vol - 0.25 * c.BoxProduct(a, b);
-			vol = vol - 0.25 * d.BoxProduct(a, c);
-			vol = vol - 0.25 * d.BoxProduct(a, b);
-			vol = vol - 0.25 * d.BoxProduct(b, c);
-			*/
+			
+			// vol = vol - 0.25 * c.BoxProduct(a, b);
+			// vol = vol - 0.25 * d.BoxProduct(a, c);
+			// vol = vol - 0.25 * d.BoxProduct(a, b);
+			// vol = vol - 0.25 * d.BoxProduct(b, c);
+			
 			vol = vol - 0.25 * scalarProduct(aa, ba, ca);
 			vol = vol - 0.25 * scalarProduct(aa, ca, da);
 			vol = vol - 0.25 * scalarProduct(aa, ba, da);
 			vol = vol - 0.25 * scalarProduct(ba, ca, da);
-			//std::cout << "face quadrilateral's " << vol << '\n';
+			std::cout << "face quadrilateral's " << vol << '\n';
 		}
 	}
 	vol = vol / 3.0;
+	if(vol<=0)
+	{
+		std::cout<<*nface<<":"<<vol<<'\n';
+
+		std::cin.get();
+	}
 	return;
 }
 
@@ -209,8 +218,9 @@ double computeCellVolume3D(double xv[8][3], int nvert)
 		nfaces = 6;
 		break;
 	}
+	cellvolume_(&vol,xv,&numverts[itype],&faceInfo[itype],&nfaces,&nvert);
 
-	findCellVolume(vol, xv, &numverts[itype], &faceInfo[itype], &nfaces, &nvert);
+	// findCellVolume(vol, xv, numverts, faceInfo,itype, &nfaces, &nvert);
 	return vol;
 }
 

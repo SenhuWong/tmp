@@ -40,7 +40,10 @@ public:
 		return nodes;
 	}
 
-	virtual void insert(int* start, double* coordinates, int nvert) = 0;
+	virtual void insert(int* start, double* coordinates, int nvert)
+	{
+		
+	}
 
 
 };
@@ -68,6 +71,7 @@ class Brick4Cobalt3D:public Brick
 {
 	int nface = 0;
 	int nnodes[6] = { -1,-1,-1,-1,-1,-1 };
+	int eachNodesDir[6] = {0};
 	int* eachNodes[6] = {nullptr};
 public:
 	Brick4Cobalt3D() {}
@@ -89,9 +93,10 @@ public:
 		return *this;
 	}
 
-	void insert(int* start, double* coordinates,int nvert)//Totally could be 3 or 4 vert 
+	void insert(int* start,int dir, double* coordinates,int nvert)//Totally could be 3 or 4 vert 
 	{
 		eachNodes[nface] = start;
+		eachNodesDir[nface] = dir;//Dir is used to indicate if this face is pointing out of the cell (1/-1);
 		nnodes[nface] = nvert;
 		nface++;
 	}

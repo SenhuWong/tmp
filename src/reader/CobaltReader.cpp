@@ -106,10 +106,10 @@ void CobaltReader::readFiles()
 						fin >> temp_nodes3D[indx + j];
 					}
 					fin >> edge2Cell[2 * i] >> edge2Cell[2 * i + 1];
-					temp_cells3D[edge2Cell[2 * i] - cellBase].insert(&temp_nodes3D[indx], xyzs, temp_counts);
+					temp_cells3D[edge2Cell[2 * i] - cellBase].insert(&temp_nodes3D[indx],1, xyzs, temp_counts);
 					if (edge2Cell[2 * i + 1] > 0)
 					{
-						temp_cells3D[edge2Cell[2 * i + 1] - cellBase].insert(&temp_nodes3D[indx], xyzs, temp_counts);
+						temp_cells3D[edge2Cell[2 * i + 1] - cellBase].insert(&temp_nodes3D[indx],-1, xyzs, temp_counts);
 					}
 				}
 				for(int i = 0;i<temp_ncells;i++)
@@ -703,7 +703,7 @@ void CobaltReader::selectReadForUnstruct()
 				iter->d_remoteId = local_recvCell_buffer[temp_count++];
 			}
 			std::vector<CommunicationCell> &cur_sendCell = cur_ub2D->getSendCells();
-			std::sort(cur_recvCell.begin(), cur_recvCell.end(), rankWithDestin); // Rank with the local id of the recv cells on the other side.
+			std::sort(cur_sendCell.begin(), cur_sendCell.end(), rankWithDestin); // Rank with the local id of the recv cells on the other side.
 		}
 
 		// Allocate Edge3d
@@ -729,9 +729,11 @@ void CobaltReader::selectReadForUnstruct()
 			bool withInLocalBufferedArea = false;
 			if (naturalBoundaryExists) // Then check if the other side is in buffered area.
 			{
-				// If buffered_flag tag is 1, then it is inside the split of Metis
-				// If is 2, then it is inside the buffer region.
+				
+				// If buffered_flag tag is 0, then it is inside the split of Metis
+				// If is greater or equal to 1, then it is inside the buffer region.
 				withInLocalBufferedArea = buffered_flag[naturalBoundaryOtherSide - cellBase] >= 0;
+				
 				if (withInLocalBufferedArea) // The other side is in buffered area, then
 				{
 					// std::cout << "WithInLocalBufferedArea";

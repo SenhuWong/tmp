@@ -144,6 +144,8 @@ void tioga::profile()
         mb->mexclude = mexclude;
         mb->nfringe = nfringe;
         mb->preprocess();
+        mblocks[ib]->writeGridFile2("nodeRes", mblocks[ib]->nodeRes);
+            mblocks[ib]->writeCellFile2("cellRes", mblocks[ib]->cellRes);
         //mb->writeMandatoryReceptor("AfterProfile");
     }
 }

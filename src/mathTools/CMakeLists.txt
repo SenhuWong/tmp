@@ -2,6 +2,8 @@ set(SRC ${SRC}
 
 ${CMAKE_CURRENT_SOURCE_DIR}/LocalGlobalMap.cpp
 
+${CMAKE_CURRENT_SOURCE_DIR}/cellVolume.f90
+
 ${CMAKE_CURRENT_SOURCE_DIR}/vector3d.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/triangle.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/OBBox.cpp

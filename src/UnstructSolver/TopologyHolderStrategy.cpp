@@ -23,6 +23,33 @@ TopologyHolderStrategy::~TopologyHolderStrategy()
 {
 }
 
+void TopologyHolderStrategy::set_fs_variable2(double Ma, double AOA, double density, double pressure, double Re)
+{
+    fs_mach = Ma;
+    std::cout<<"fs_mach "<<fs_mach<<'\n';
+    fs_AOA = PI * AOA/180;
+    std::cout<<"fs_AOA "<<fs_AOA<<'\n';
+    fs_density = density;
+    std::cout<<"fs_density "<<fs_density<<'\n';
+    fs_pressure = pressure;
+    std::cout<<"fs_pressure "<<fs_pressure<<'\n';
+    fs_Re = Re;
+    std::cout<<"fs_Re "<<fs_Re<<'\n';
+    fs_soundSpeed = sqrtf64(Gamma*fs_pressure/fs_density);
+    std::cout<<"fs_soundSpeed "<<fs_soundSpeed<<'\n';
+    fs_Temperature = fs_pressure/(R*fs_density);
+    std::cout<<"fs_Temperature "<<fs_Temperature<<'\n';
+    fs_velocity_magnitude = fs_soundSpeed*fs_mach;
+    std::cout<<"fs_velocity_magnitude "<<fs_velocity_magnitude<<'\n';
+    fs_mu = 1.45e-6*pow(fs_Temperature,1.5)/(fs_Temperature+110);
+    std::cout<<"fs_mu "<<fs_mu<<'\n';
+    fs_velocity_components[0] = fs_velocity_magnitude * cosf64(fs_AOA);
+    fs_velocity_components[1] = fs_velocity_magnitude * sinf64(fs_AOA);
+    std::cout<<fs_velocity_components[0]<<" "<<fs_velocity_components[1]<<'\n';
+    fs_eigen_Length = fs_Re*fs_mu/(fs_density*fs_velocity_magnitude);
+    std::cout<<"fs_eigen_Length "<<fs_eigen_Length<<'\n';
+}
+
 void TopologyHolderStrategy::set_fs_variable(double Ma, double AOA, double density, double pressure, double eigenLen)
 {
     // Ma is 0.8
