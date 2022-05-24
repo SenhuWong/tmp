@@ -538,7 +538,7 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
                 }
                 else
                 {
-                    if(abs(holderVector[next].normal_y)>abs(holderVector[cur].normal_y))
+                    if(std::abs<double>(holderVector[next].normal_y)>std::abs<double>(holderVector[cur].normal_y))
                     {
                         buffer[m-1] = holderVector[next].cp;
                         buffer[m-2] = holderVector[next].normal_y;
@@ -558,12 +558,13 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
         fout.open("Cp");
         fout<<"Title = \"Dussin_exp\"\n";
         fout<<"VARIABLES = \"X\",\"Cp\"\n";
-        fout<<"ZONE T=\"Dussin_exp\", I = "<<nCp<<", F=POINT\n";
+        fout<<"ZONE T=\"Dussin_exp\", I = "<<nCp+1<<", F=POINT\n";
 
         for(int i = 0;i<nCp;i++)
         {
             fout<<buffer[4*i]<<"\t"<<buffer[4*i+3]<<'\n';//<<"\t"<<buffer[4*i+2]<<"\t"<<buffer[4*i+3]<<'\n';
         }
+        fout<<buffer[4*0]<<"\t"<<buffer[4*0+3]<<'\n';
         fout.close();
 
         

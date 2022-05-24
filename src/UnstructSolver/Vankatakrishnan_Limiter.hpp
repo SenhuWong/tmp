@@ -116,7 +116,7 @@ void Vankatakrishnan_Limiter<ndim>::computeLimiter(double **UL,double **UR) // c
             if (lc >= 0)
             {
                 GeomElements::vector3d<ndim, double> leftVec = curEdge.center() - curBlk.d_localCells[lc].center();
-                double epsilonSquare = powf64(LIMITER_K, d_dim) * d_hder->CellVolume(i, lc);
+                double epsilonSquare = powf64(LIMITER_K, 3) * d_hder->CellVolume(i, lc);
                 double result_limit;
                 for (int j = 0; j < d_NEQU; j++)
                 {
@@ -146,7 +146,7 @@ void Vankatakrishnan_Limiter<ndim>::computeLimiter(double **UL,double **UR) // c
             if (rc >= 0)
             {
                 GeomElements::vector3d<ndim, double> rightVec = curEdge.center() - curBlk.d_localCells[rc].center();
-                double epsilonSquare = powf64(LIMITER_K, d_dim) * d_hder->CellVolume(i, rc);
+                double epsilonSquare = powf64(LIMITER_K, 3) * d_hder->CellVolume(i, rc);
                 double result_limit;
                 for (int j = 0; j < d_NEQU; j++)
                 {

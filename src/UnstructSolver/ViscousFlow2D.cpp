@@ -191,7 +191,39 @@ void ViscousFlow2D::solveGradient(int istage)
     }
 }
 
-
+void ViscousFlow2D::solveSpectralRadius()
+{
+    double Spectrum_edge;
+    GeomElements::vector3d<2, double> velocity_edge;
+    for (int i = 0; i < d_nmesh; i++)
+    {
+        auto &curBlk = d_hder->blk2D[i];
+        for (int k = 0; k < d_hder->nEdges(i); k++)
+        {
+            auto &curEdge = curBlk.d_localEdges[k];
+            velocity_edge[0] = U_edge[i][2+d_NEQU*k];
+            velocity_edge[1] = U_edge[i][3+d_NEQU*k];
+            double c = sqrt(Gamma * U_edge[i][1+d_NEQU*k] / U_edge[i][0+d_NEQU*k]);
+            double Vn = velocity_edge.dot_product(curEdge.normal_vector());
+            int lC = curEdge.lCInd();
+            int rC = curEdge.rCInd();
+            Spectrum_edge = (fabsf64(Vn) + c) * curEdge.area();
+            Spectrum_cell_c[i][lC] += Spectrum_edge;
+            if (rC >= 0)
+            {
+                Spectrum_cell_c[i][rC] += Spectrum_edge;
+            }
+            auto& leftCell = curBlk.d_localCells[lC];
+            Spectrum_edge = std::max<double>(4/(3.0*U_edge[i][0+d_NEQU*k]),Gamma/U_edge[i][0+d_NEQU*k])*d_vfluxComputer->getMuOverPrEdge(i,k)*curEdge.area()*curEdge.area();
+            Spectrum_cell_v[i][lC] += Spectrum_edge / leftCell.volume();
+            if(rC >= 0)
+            {
+                auto& rightCell = curBlk.d_localCells[rC];
+                Spectrum_cell_v[i][rC] += Spectrum_edge /  rightCell.volume();
+            }
+        }
+    }
+}
 
 
 void ViscousFlow2D::updateFlux(int istage)
@@ -249,7 +281,7 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
                 if(curEdge.normal_vector()[1]>0)//Upper half
                 {
                     //std::cout<<"Proc "<<cur_proc<<" found one lower half"<<'\n';
-                    count_average[ptId] = -std::abs(count_average[ptId]);
+                    count_average[ptId] = -fabsf64(count_average[ptId]);
                 }
                 wallNodeInds->insert(ptId);
             }
@@ -366,13 +398,13 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
             TheSame=true;
             while(TheSame)
             {
-                if(std::abs(holderVector[cur].center[0]-holderVector[next].center[0])>0.0001)
+                if(fabsf64(holderVector[cur].center[0]-holderVector[next].center[0])>0.0001)
                 {
                     TheSame =false;
                 }
                 else
                 {
-                    if(abs(holderVector[next].normal_y)>abs(holderVector[cur].normal_y))
+                    if(fabsf64(holderVector[next].normal_y)>fabsf64(holderVector[cur].normal_y))
                     {
                         buffer[m-1] = holderVector[next].cp;
                         buffer[m-2] = holderVector[next].normal_y;
@@ -392,12 +424,13 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
         fout.open("Cp");
         fout<<"Title = \"Dussin_exp\"\n";
         fout<<"VARIABLES = \"X\",\"Cp\"\n";
-        fout<<"ZONE T=\"Dussin_exp\", I = "<<nCp<<", F=POINT\n";
+        fout<<"ZONE T=\"Dussin_exp\", I = "<<nCp+1<<", F=POINT\n";
 
         for(int i = 0;i<nCp;i++)
         {
             fout<<buffer[4*i]<<"\t"<<buffer[4*i+3]<<'\n';//<<"\t"<<buffer[4*i+2]<<"\t"<<buffer[4*i+3]<<'\n';
         }
+        fout<<buffer[4*0]<<"\t"<<buffer[4*0+3]<<'\n';
         fout.close();
 
         

@@ -74,7 +74,7 @@ public:
                     {
                         for (int j = 0; j < d_NEQU; j++)
                         {
-                            UL[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] = U[i][j+d_NEQU*lc];
+                            UL[i][j+d_NEQU*k] = UR[i][j+d_NEQU*k] = U_edge[i][j+d_NEQU*k];
                         }
                     }
                     else if (rc == GeomElements::edge3d<2>::BoundaryType::FARFIELD) // Far_field, set to be the face variables

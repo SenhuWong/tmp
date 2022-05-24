@@ -98,7 +98,7 @@ public:
             auto &curBlk = d_hder->blk2D[i];
             for (int j = 0; j < curBlk.nCells(); j++)
             {
-                Residual += abs(U[i][0+d_NEQU*j] - W_scratch[i][0][j]);
+                Residual += std::abs<double>(U[i][0+d_NEQU*j] - W_scratch[i][0][j]);
 
             }
             if (i == 0)

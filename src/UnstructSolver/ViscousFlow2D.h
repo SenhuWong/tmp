@@ -53,39 +53,7 @@ public:
 
     void solveGradient(int istage);
 
-    void solveSpectralRadius()
-    {
-        double Spectrum_edge;
-        GeomElements::vector3d<2, double> velocity_edge;
-        for (int i = 0; i < d_nmesh; i++)
-        {
-            auto &curBlk = d_hder->blk2D[i];
-            for (int k = 0; k < d_hder->nEdges(i); k++)
-            {
-                auto &curEdge = curBlk.d_localEdges[k];
-                velocity_edge[0] = U_edge[i][2+d_NEQU*k];
-                velocity_edge[1] = U_edge[i][3+d_NEQU*k];
-                double c = sqrt(Gamma * U_edge[i][1+d_NEQU*k] / U_edge[i][0+d_NEQU*k]);
-                double Vn = velocity_edge.dot_product(curEdge.normal_vector());
-                int lC = curEdge.lCInd();
-                int rC = curEdge.rCInd();
-                Spectrum_edge = (std::abs(Vn) + c) * curEdge.area();
-                Spectrum_cell_c[i][lC] += Spectrum_edge;
-                if (rC >= 0)
-                {
-                    Spectrum_cell_c[i][rC] += Spectrum_edge;
-                }
-                auto& leftCell = curBlk.d_localCells[lC];
-                Spectrum_edge = std::max<double>(4/(3.0*U_edge[i][0+d_NEQU*k]),Gamma/U_edge[i][0+d_NEQU*k])*d_vfluxComputer->getMuOverPrEdge(i,k)*curEdge.area()*curEdge.area();
-                Spectrum_cell_v[i][lC] += Spectrum_edge / leftCell.volume();
-                if(rC >= 0)
-                {
-                    auto& rightCell = curBlk.d_localCells[rC];
-                    Spectrum_cell_v[i][rC] += Spectrum_edge /  rightCell.volume();
-                }
-            }
-        }
-    }
+    void solveSpectralRadius();
 
 
     double getMuOverPrEdge(int curMesh,int curEdge) override

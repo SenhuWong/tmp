@@ -2,6 +2,7 @@
 #include "TopologyHolderStrategy.h"
 #include "UnstructIntegrator.h"
 #include "toolBox/edge3d_int.h"
+#include "math.h"
 class BoundaryStrategy
 {
 private:
@@ -138,7 +139,7 @@ public:
                     double rho_left = U[i][0+d_NEQU*lC];
                     double p_left = U[i][1+d_NEQU*lC];
 
-                    if (abs(normalVelocityComponentRight) < fsnd_soundSpeed) // Sub sonic
+                    if (fabsf64(normalVelocityComponentRight) < fsnd_soundSpeed) // Sub sonic
                     {
                         double Vnb = (normalVelocityComponentLeft + normalVelocityComponentRight + 2 * (sqrt(Gamma * p_left / rho_left) - fsnd_soundSpeed) / (Gamma - 1)) / 2;
                         double Cb = (normalVelocityComponentLeft - normalVelocityComponentRight + 2 * (fsnd_soundSpeed + sqrt(Gamma * p_left / rho_left)) / (Gamma - 1)) * (Gamma - 1) / 4;
@@ -246,8 +247,11 @@ public:
                     normalVec = curEdge.normal_vector();
                     normalVelocityComponentLeft = Leftvelocity.dot_product(normalVec);
                     tangenVelocityLeft = Leftvelocity - normalVec * normalVelocityComponentLeft;
-                    if (tangenVelocityLeft.dot_product(normalVec) > 1.0e-11)
+                    if (tangenVelocityLeft.dot_product(normalVec) > 1.0e-7)
                     {
+                        std::cout<<tangenVelocityLeft[0]<<","<<tangenVelocityLeft[1]<<'\n';
+                        std::cout<<normalVec[0] <<","<<normalVec[1]<<'\n';
+                        std::cout<<tangenVelocityLeft.dot_product(normalVec)<<'\n';
                         throw std::runtime_error("Something wrong with Vector computation\n");
                     }
                     U_edge[i][0+d_NEQU*k] = U[i][0+d_NEQU*lC];
@@ -276,7 +280,7 @@ public:
                     double rho_left = U[i][0+d_NEQU*lC];
                     double p_left = U[i][1+d_NEQU*lC];
 
-                    if (abs(normalVelocityComponentRight) < fsnd_soundSpeed) // Sub sonic
+                    if (fabsf64(normalVelocityComponentRight) < fsnd_soundSpeed) // Sub sonic
                     {
                         double Vnb = (normalVelocityComponentLeft + normalVelocityComponentRight + 2 * (sqrt(Gamma * p_left / rho_left) - fsnd_soundSpeed) / (Gamma - 1)) / 2;
                         double Cb = (normalVelocityComponentLeft - normalVelocityComponentRight + 2 * (fsnd_soundSpeed + sqrt(Gamma * p_left / rho_left)) / (Gamma - 1)) * (Gamma - 1) / 4;

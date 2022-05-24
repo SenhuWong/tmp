@@ -3,6 +3,7 @@
 #include "TopologyHolderStrategy.h"
 #include <algorithm>
 #include <iostream>
+#include <mpi/mpi.h>
 #include "toolBox/edge3d_int.h"
 LUSGSStrategy::LUSGSStrategy(UnstructTopologyHolder *hder, TopologyHolderStrategy* hder_strategy)
     :TimeStrategy(hder,hder_strategy)
@@ -352,8 +353,6 @@ void LUSGSStrategy::SolveDiag(double** de_diag, double** dt)
             double diag = curCell.volume()/dt[i][k] + 0.5*OMEGAN*spectrum_convec[i][k];
             if(!d_hder_strategy->isInvicid())
             {
-                std::cout<<"Is not invicid NMSL"<<d_hder_strategy->isInvicid()<<'\n';
-                std::cin.get();
                 double ** spectrum_viscous = d_hder_strategy->getSpectrumViscous();
                 diag += spectrum_viscous[i][k];
             }
@@ -380,28 +379,15 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
     double Fc[d_NEQU];
 
     double rA;
-    // double Fv[d_NEQU];
+    double Fv[d_NEQU];
     double DFc[d_NEQU];
     int lC = edg.lCInd();
     int rC = edg.rCInd();
-    // std::cout<<"solvedf called\n";
     if(curCell + cellOffset==lC)//Current cell at left side
     {
         bool dothis = false;
-        // std::cout<<"current left,"<<"rC<lC"<<(rC<lC)<<" == "<< "ForB"<<ForB<<" gives "<< ((rC<lC) ==  ForB)<<'\n';
-        // if(ForB==1)//Forward Sweep,only do this when current cell > another
-        // {
-        //     dothis = rC<lC;
-        // }
-        // else//Backward Sweep,only do this when current cell < another
-        // {
-        //     dothis = rC>lC;
-        // }
-        // if(rC>=0 and dothis)
         if(rC>=0 and ((int(rC<lC))==(ForB)))
         {
-            if(ForB==1)
-            {
             //If ForB is 1, then calculate when curCell(lC) >the other cell(rC)
             //If ForB is 0, then calculate when curCell(lC) < the other cell(rC)
             if(rC >= d_hder->nCells(curMesh))
@@ -419,7 +405,7 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             GeomElements::vector3d<2,double> norm = edg.normal_vector();
             ConservativeParam2ConvectiveFlux(W,Fc,norm);
             ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
-            // SolveViscousFlux(curMesh,curCell,curEdge,rC,2*ForB-1,dW,Fv);
+            SolveViscousFlux(curMesh,curCell,curEdge,rC,dW,Fv);
 
             //Newly added:compute Viscous FLux
             //i is lc and j is rc
@@ -432,8 +418,7 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             }
             for(int j = 0;j<d_NEQU;j++)
             {
-                DF[j] = 0.5*(DFc[j])*edg.area();
-            }
+                DF[j] = 0.5*(DFc[j] - Fv[j])*edg.area();
             }
         }
         else
@@ -446,21 +431,8 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
     }
     else if(curCell + cellOffset==rC)
     {
-        bool dothis = false;
-        // if(ForB==1)
-        // {
-        //     dothis = lC<rC;
-        // }
-        // else
-        // {
-        //     dothis = lC>rC;
-        // }
-        // std::cout<<"current right,"<<"lC<rC"<<(lC<rC)<<" == "<< "ForB"<<ForB<<" gives "<< ((lC<rC) ==  ForB)<<'\n';
-        // if(dothis)
         if((int(lC<rC)) == (ForB))
         {
-            if(ForB==1)
-            {
             if(lC>=d_hder->nCells(curMesh))
             {
                 lC = lC - d_hder->nCells(curMesh);
@@ -476,15 +448,14 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
             GeomElements::vector3d<2,double> norm = edg.normal_vector();
             ConservativeParam2ConvectiveFlux(W,Fc,norm);
             ConservativeParam2ConvectiveFlux(Wp,Fcp,norm);
-            // SolveViscousFlux(curMesh,curCell,curEdge,lC,2*ForB-1,dW,Fv);
+            SolveViscousFlux(curMesh,curCell,curEdge,lC,dW,Fv);
             for(int j = 0;j<d_NEQU;j++)
             {
                 DFc[j] =  Fc[j] - Fcp[j];
             }
             for(int j = 0;j<d_NEQU;j++)
             {
-                DF[j] = 0.5*(DFc[j])*edg.area();
-            }
+                DF[j] = 0.5*(DFc[j] - Fv[j])*edg.area();
             }
         }
         else
@@ -497,11 +468,17 @@ void LUSGSStrategy::SolveDF(int curMesh,int curCell,int curEdge,
     }
     else
     {
+        // int cur_proc;
+        // MPI_Comm_rank(MPI_COMM_WORLD,&cur_proc);
+        // if(cur_proc==0)
+        // {
+        std::cout<<curCell<<" with offset "<< cellOffset <<" not found in "<<lC<<" and "<<rC<<'\n';
         throw std::runtime_error("Cur cell is not on either side,impossible\n");
+    // }
     }
 }
 
-void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,int ForB,double* detlaW,double* Fv)
+void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,double* detlaW,double* Fv)
 {
     const double Gamma = 1.4;
     const double OMEGAN = 1.5;
@@ -512,6 +489,11 @@ void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int ano
     auto& curC = curBlk.d_localCells[curCell];
     GeomElements::vector3d<2,double> centerLine;
     //It is impossible to have anotherCell at first negative to be raised amid 0 and nCells 
+    if(anotherCell>= d_hder->nCells(curMesh))
+    {
+        throw std::runtime_error("Oh Look what you have done\n");
+    }
+    // std::cout<<"Viscous Flux computed\n";
     if(anotherCell >=0)
     {
         auto& anotherC = curBlk.d_localCells[anotherCell];
@@ -533,12 +515,13 @@ void LUSGSStrategy::SolveViscousFlux(int curMesh,int curCell,int curEdge,int ano
     rA  = OMEGAN*(fabsf64(Vn)+c);
     if(!d_hder_strategy->isInvicid())
     {
-        rA += std::max<double>(4/(3*U[curMesh][0+d_NEQU*curCell]),Gamma/U[curMesh][0+d_NEQU*curCell])*
+        std::cout<<"NOt invicid\n";
+        rA += std::max<double>(4/(3*U[curMesh][0+d_NEQU*anotherCell]),Gamma/U[curMesh][0+d_NEQU*anotherCell])*
         (d_hder_strategy->getMuOverPrCell(curMesh,curCell))/centerLine.L2Square();
     }
     for(int j = 0;j<d_NEQU;j++)
     {
-        Fv[j] = ForB*rA*detlaW[j];
+        Fv[j] = rA*detlaW[j];
     }
 }
 
@@ -636,8 +619,12 @@ void LUSGSStrategy::SolveBoundaryBackwardSweep(double** diag,
     {
         int cellIdOffset = d_hder->nCells(i);
         auto& curBlk = d_hder->blk2D[i];
-        for(int k = 0;k<nskip[i];k++)
+        int cur_proc;
+
+        for(int k = nskip[i]-1;k>=0;k--)
+        // for(int k = 0;k<nskip[i];k++)
         {
+            
             int cellId = skip_point[i][k];
             auto& curCell = curBlk.d_localCells[cellId];
             for(int j = 0;j<d_NEQU;j++)
@@ -670,9 +657,11 @@ void LUSGSStrategy::SolveLocalBackwardSweep(double** diag,
     {
         int cellIdOffset = 0;
         auto& curBlk = d_hder->blk2D[i];
-        for(int k = 0;k<nskip[i]-1;k++)
+        for(int k = nskip[i]-2;k>=0;k--)
+        // for(int k = 0;k<nskip[i]-1;k++)
         {
-            for(int l = skip_point[i][k]+1;l<skip_point[i][k+1];l++)
+            for(int l = skip_point[i][k+1]-1;l>skip_point[i][k];l--)
+            // for(int l = skip_point[i][k]+1;l<skip_point[i][k+1];l++)
             {
                 int cellId = l;
                 auto& curCell = curBlk.d_localCells[cellId];
@@ -760,7 +749,6 @@ void LUSGSStrategy::SolveDfSimple(double *W,double* DW,
 //                             dFi[l] += dF[l];
 //                         }
 //                     }
-
 //                 }
 //                 else if(k==rC)
 //                 {
@@ -905,15 +893,21 @@ void LUSGSStrategy::SolveBackwardSweep(double** diag,
     for(int i = 0;i<d_nmesh;i++)
     {
         auto& curBlk = d_hder->blk2D[i];
-        for(int k = 0;k<d_hder->nCells(i);k++)
+        for(int k = d_hder->nCells(i)-1;k>=0;k--)
+        // for(int k = 0;k<d_hder->nCells(i);k++)
         {
+            // std::cout<<"k is"<<k<<" out of "<<d_hder->nCells(i)<<'\n';
             auto& curCell = curBlk.d_localCells[k];
             for(int j = 0;j<d_NEQU;j++)
             {
                 dFi[j] = 0;
             }
+            // std::cout<<"curCell.edge_size() is "<<curCell.edge_size()<<'\n';
             for(int j = 0;j<curCell.edge_size();j++)
             {
+                // std::cout<<"edgeINd is "<<curCell.edgeInd(j)<<'\n';
+                auto& curEdge = curBlk.d_localEdges[curCell.edgeInd(j)];
+                // std::cout<<"both sides ind are :"<<curEdge.lCInd()<<" "<<curEdge.rCInd()<<'\n';
                 SolveDF(i,k,curCell.edgeInd(j),W_scratch,deltaW,dF,ForB,0);
                 for(int l = 0;l<d_NEQU;l++)
                 {

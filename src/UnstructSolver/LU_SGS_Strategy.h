@@ -3,6 +3,7 @@
 #include "TopologyHolderStrategy.h"
 #include "toolBox/vector3d.h"
 #include "toolBox/edge3d_int.h"
+#include "UnstructIntegrator.h"
 class LUSGSStrategy : public TimeStrategy
 {
 private:
@@ -73,7 +74,7 @@ private:
         Fc[3] = W[3]*Vn + PatCell*norm_vec[1];
     }
 
-    void SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,int ForB,double* detlaW,double* Fv);
+    void SolveViscousFlux(int curMesh,int curCell,int curEdge,int anotherCell,double* detlaW,double* Fv);
 
 
     void SolveDiag(double** de_diag, double** dt);
@@ -106,5 +107,25 @@ private:
 
     void SolveBackwardSweep(double** diag,
                             double** W_scratch,double** deltaW1,double** deltaW);
+    public:
+    void checkEdgeCountSerial(const std::string& filename)
+    {
+        std::string localFilename = filename;
+        for(int i = 0;i<d_nmesh;i++)
+        {
+            auto& curBlk = d_hder->blk2D[i];
+            int* edgeCount = new int[d_hder->nCells(i)];
+            for(int j = 0;j<d_hder->nCells(i);j++)
+            {
+                auto& curCell = curBlk.d_localCells[j];
+                edgeCount[j] = curCell.edge_size();
+            }
+            std::cout<<"Writing\n";
 
+            d_hder_strategy->writeTiogaFormat(localFilename,0,0,edgeCount);
+        
+            delete[] edgeCount;
+        }
+        
+    }
 };

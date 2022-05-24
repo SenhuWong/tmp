@@ -675,10 +675,10 @@ void unstruct_serial()
     {
         LUSGSStrategy* lusgs_integrator = new LUSGSStrategy(integrator,euler);
         lusgs_integrator->initialize();
+        lusgs_integrator->checkEdgeCountSerial("Serial_edgeCount");
         simpleTimer timeIs;
         for(int i = 0;i<10001;i++)
         {
-            
             lusgs_integrator->singleStepSerial(i);
             if(i%5000==0)
             {
@@ -701,14 +701,14 @@ void unstruct_main()
     MPI_Comm_size(MPI_COMM_WORLD,&num_proc);
     MPI_Comm_rank(MPI_COMM_WORLD,&cur_proc);
     CobaltReader *rd = new CobaltReader[1];
-    rd->addFile("naca0012.grd");
-    rd->setOverSign(-2);
-    rd->setWallSign(-1);
+    // rd->addFile("naca0012.grd");
+    // rd->setOverSign(-2);
+    // rd->setWallSign(-1);
     
 
-    // rd->setOverSign(-1);
-    // rd->setWallSign(-4);
-    // rd->addFile("rae2822_euler.grd");
+    rd->setOverSign(-1);
+    rd->setWallSign(-4);
+    rd->addFile("rae2822_euler.grd");
 
     // rd->addFile("naca0012.grd");
     rd->setDim(2);
@@ -743,7 +743,7 @@ void unstruct_main()
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,euler,5);
         rk_integrator->initialize();
         
-        for(int i = 0;i<5001;i++)
+        for(int i = 0;i<20001;i++)
         {
             rk_integrator->singleStep(i);
             if(i%5000==0)
@@ -769,12 +769,7 @@ void unstruct_main()
         lusgs->initialize();
         for(int i = 0;i<10001;i++)
         {
-            
             lusgs->singleStep(i);
-            
-
-                
-     
             if(i%5000==0)
             {
                 std::cout<<i<<'\n';
@@ -831,7 +826,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            unstruct_parallelv();
+            unstruct_main();
         }
     }
 }

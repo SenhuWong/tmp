@@ -198,11 +198,12 @@ public:
                     double qy = - Gamma/(Gamma -1) *(mu_edge[i][k]/fs_Pr) * gradEdge[d_dim][1];
                     GeomElements::vector3d<2,double> normal = curEdge.normal_vector();
                     Fv[0] = 0.0;
-                    Fv[1] = ((velocity_edge[0]*taoxx+velocity_edge[1]*taoxy)*normal[0]
-                    +(velocity_edge[0]*taoxy+velocity_edge[1]*taoyy)*normal[1])*curEdge.area();
+                    Fv[1] = ((velocity_edge[0]*taoxx+velocity_edge[1]*taoxy-qx)*normal[0]
+                    +(velocity_edge[0]*taoxy+velocity_edge[1]*taoyy-qy)*normal[1])*curEdge.area();
                     Fv[2] = (taoxx*normal[0] + taoxy*normal[1])*curEdge.area();
                     Fv[3] = (taoxy*normal[0] + taoyy*normal[1])*curEdge.area();
-                    // Fv[1] = GeomElements::vector3d<2,double>(velocity_edge.dot_product(tao[0])-qx,velocity_edge.dot_product(tao[1])-qy).dot_product(curEdge.normal_vector())*curEdge.area();
+                    // Fv[1] = GeomElements::vector3d<2,double>(velocity_edge.dot_product(tao[0])-qx,
+                    // velocity_edge.dot_product(tao[1])-qy).dot_product(curEdge.normal_vector())*curEdge.area();
                     //Fv[2] = tao[0].dot_product(curEdge.normal_vector())*curEdge.area();
                     // Fv[3] = tao[1].dot_product(curEdge.normal_vector())*curEdge.area();
                     // for(int j = 0;j<4;j++)
