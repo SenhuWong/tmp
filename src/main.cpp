@@ -542,19 +542,34 @@ void unstruct_serial_v()
     std::cout<<"Flower initialization done\n";
     std::cin.get();
     //RungeKuttta
-    bool use_implicit = false;
+    bool use_implicit = true;
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,flower,5);
         rk_integrator->initialize();
-        for(int i = 0;i<100;i++)
+        for(int i = 0;i<40001;i++)
         {
             rk_integrator->singleStepSerial(i);
-            if(i%500==0)
+            if(i%5000==0)
             {
                 std::cout<<i<<"\n";
                 flower->writeCellData("cellDataSerial_"+std::to_string(i),0,0,flower->getU());
             }
+        }
+    }
+    else
+    {
+        LUSGSStrategy* lusgs_integrator = new LUSGSStrategy(integrator,flower);
+        lusgs_integrator->initialize();
+        for(int i = 0;i<5001;i++)
+        {
+            lusgs_integrator->singleStepSerial(i);
+            std::cout<<i<<"Implicit Serial\n";
+            // if(i%500==0)
+            // {
+                // std::cout<<i<<"Implicit Serial"<<'\n';
+                flower->writeCellData("cellDataSerial_LUSGS_"+std::to_string(i),0,0,flower->getU());
+            // }
         }
     }
 }
@@ -600,7 +615,7 @@ void unstruct_parallelv()
     
     // flower->outPutNondim("NOndim",cur_proc);
     
-    bool use_implicit = false;
+    bool use_implicit = true;
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,flower,5);
@@ -622,7 +637,30 @@ void unstruct_parallelv()
             }
         }
         std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-        flower->outPutCp(Cp_name,0);
+        flower->outPutCp(Cp_name,0,10000);
+    }
+    else
+    {
+        simpleTimer timeIs;
+        LUSGSStrategy* lusgs = new LUSGSStrategy(integrator,flower);
+        lusgs->initialize();
+        for(int i = 0;i<1000001;i++)
+        {
+            lusgs->singleStep(i);
+            if(i%5000==0)
+            {
+                std::cout<<i<<'\n';
+                lusgs->postprocessUpdate();
+                flower->AllCellCommunication(flower->getU());
+                flower->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,flower->getU());
+                std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+                flower->outPutCp(Cp_name,0,i);
+            }
+        }
+        std::cout<<"Finished?\n";
+        
+        
+        
     }
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
@@ -680,9 +718,9 @@ void unstruct_serial()
         for(int i = 0;i<10001;i++)
         {
             lusgs_integrator->singleStepSerial(i);
-            if(i%5000==0)
+            if(i%500==0)
             {
-                std::cout<<i<<'\n';
+                std::cout<<i<<"Using Implicit"<<'\n';
                 euler->writeCellData("cellDataSerial_LUSGSOn"+std::to_string(i+1),0,0,euler->getU());
             }
         }
@@ -757,29 +795,32 @@ void unstruct_main()
             {
                 euler->AllCellCommunication(euler->getU());
                 euler->writeCellData("cellDatParallel"+std::to_string(i+1),cur_proc,0,euler->getU());
+                std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+                euler->outPutCp(Cp_name,0,i);
             }
         }
-        std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-        euler->outPutCp(Cp_name,0);
+        
     }
     else
     {
         simpleTimer timeIs;
         LUSGSStrategy* lusgs = new LUSGSStrategy(integrator,euler);
         lusgs->initialize();
-        for(int i = 0;i<10001;i++)
+        for(int i = 0;i<5001;i++)
         {
             lusgs->singleStep(i);
-            if(i%5000==0)
+            if(i%500==0)
             {
                 std::cout<<i<<'\n';
                 euler->AllCellCommunication(euler->getU());
                 euler->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,euler->getU());
+                std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+                euler->outPutCp(Cp_name,0,i);
             }
         }
         std::cout<<"Finished?\n";
-        std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-        euler->outPutCp(Cp_name,0);
+        
+        
     }
     std::cout<<"MPI BARRIER?\n";
     MPI_Barrier(MPI_COMM_WORLD);
@@ -822,7 +863,7 @@ int main(int argc, char *argv[])
     {
         if(serial_used)
         {
-            unstruct_serial();
+            unstruct_serial_v();
         }
         else
         {

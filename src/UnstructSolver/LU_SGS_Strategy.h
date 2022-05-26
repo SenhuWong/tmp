@@ -30,11 +30,12 @@ public:
     void singleStep(int curStage)override;
     void singleStepSerial(int curStep);
     bool converged()override;
+    void postprocessUpdate();
 private:
     void preprocessUpdate();
     void Update();
     void UpdateSerial();
-    void postprocessUpdate();
+    
 
     void preprocessLUSGS();
     void postprocessLUSGS();

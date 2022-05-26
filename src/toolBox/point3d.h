@@ -62,15 +62,3 @@ namespace GeomElements
 
 	};
 };
-
-template <int ndim>
-std::ofstream &operator<<(std::ofstream &sm,const GeomElements::point3d<ndim> &p)
-{
-	//sm << "-----neo-cell-----\n";
-	for (int i = 0; i < p.size(); i++)
-	{
-		sm << p.position()[i]<<'\t';//c.d_boundingPoints[c.pointInd(i)];
-	}
-	sm << '\n';
-	return sm;
-}

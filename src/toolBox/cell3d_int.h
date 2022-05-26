@@ -112,15 +112,3 @@ namespace GeomElements
 	point3d<ndim> *cell3d<ndim>::d_boundingPoints = NULL;
 
 };
-
-// template <int ndim>
-// std::ofstream &operator<<(std::ofstream &sm, const GeomElements::cell3d<ndim> &c)
-// {
-// 	sm << "-----neo-cell-----\n";
-// 	for (int i = 0; i < c.size(); i++)
-// 	{
-// 		sm << c.point(i);
-// 	}
-// 	sm << "volume: " << c.volume() << '\n';
-// 	return sm;
-// }

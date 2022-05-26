@@ -12,7 +12,7 @@ private:
     double fs_Ma;
     double fs_Re;
 
-    double **Spectrum_cell_v = NULL;
+    // double **Spectrum_cell_v = NULL;
 
     double ** mu = NULL;
     double ** mu_edge = NULL;
@@ -26,10 +26,10 @@ public:
     {
         return mu_edge;
     }
-    double **getSpectrum()
-    {
-        return Spectrum_cell_v;
-    }
+    // double **getSpectrum()
+    // {
+    //     return Spectrum_cell_v;
+    // }
 
     
     
@@ -39,12 +39,12 @@ public:
     {
         mu = new double*[d_nmesh];
         mu_edge = new double*[d_nmesh];
-        Spectrum_cell_v = new double*[d_nmesh];
+        // Spectrum_cell_v = new double*[d_nmesh];
         for(int i = 0;i<d_nmesh;i++)
         {
             mu[i] = new double[d_hder->nCells(i)];
             mu_edge[i] = new double[d_hder->nEdges(i)];
-            Spectrum_cell_v[i] = new double[d_hder->nCells(i)];
+            // Spectrum_cell_v[i] = new double[d_hder->nCells(i)];
         }
         fs_Temperature = d_hder_strategy->fs_Temperature;
         std::cout<<"LaminarFluxStrategy::fs_Temperature "<<fs_Temperature<<'\n';
@@ -102,9 +102,6 @@ public:
 
     void computeFlux(int istage)
     {
-        // std::string localFilename = "recorder_edge_v"+std::to_string(istage)+"_"+std::to_string(cur_proc);
-        // std::ofstream fout;
-        // fout.open(localFilename);
         const double Gamma = 1.4;
         //Get mu_edge from FluxFlow
         double** U = d_hder_strategy->getU();
@@ -116,47 +113,28 @@ public:
         GeomElements::vector3d<2,double>** gradT = (GeomElements::vector3d<2,double>**)d_hder_strategy->getGradientT();
         for(int i = 0; i < d_nmesh; i++)
         {
-            // fout << "Mesh "<< i << " --------------------------------------------\n";
             auto& curBlk = d_hder->blk2D[i];
             GeomElements::vector3d<2,double> average;
             GeomElements::vector3d<2,double> Left2Right;
             for(int k = 0; k < d_hder->nEdges(i); k++)
             {
-                // fout << "Edge "<< k << " ---";
                 auto& curEdge = curBlk.d_localEdges[k];
                 int lC = curEdge.lCInd();
                 int rC = curEdge.rCInd();
-                // fout << "LC "<< lC << " ---"<<"RC "<< rC << " ---\n";
                 double efficient = 2.0/3.0*mu_edge[i][k];
-                // fout << "\tmu_edge :"<<mu_edge[i][k]<<'\n';
-                // fout << "\tefficient :"<< efficient<<'\n';
                 //First compute Gradient at Edge.
                 if(rC>=0)//Inner
                 {
-                    // fout <<"\t("<<curBlk.d_localCells[lC].center()[0]<<","<<curBlk.d_localCells[lC].center()[1]<< ")->("<<curBlk.d_localCells[rC].center()[0] << ","<<curBlk.d_localCells[rC].center()[1]<<")\n";
                     Left2Right = curBlk.d_localCells[rC].center() - curBlk.d_localCells[lC].center();
-                    // fout <<"\t("<<Left2Right[0]<<","<<Left2Right[1]<<")\n";
                     for(int j = 0; j<d_dim;j++)
                     {
-                        // fout <<"var "<<j<<'\n';
-                        // fout <<"\tLeft Grad:"<<gradU[i][2+j+d_NEQU*lC][0]<<","<<gradU[i][2+j+d_NEQU*lC][1]<<'\n';
-                        // fout <<"\tRight Grad:"<<gradU[i][2+j+d_NEQU*rC][0]<<","<<gradU[i][2+j+d_NEQU*rC][1]<<'\n';
                         average = (gradU[i][2+j+d_NEQU*lC] + gradU[i][2+j+d_NEQU*rC])*0.5;
-                        // fout <<"\taverage:"<<average[0]<<","<<average[1]<<'\n';
                         gradEdge[j] = average + Left2Right*((U[i][2+j+d_NEQU*rC]-U[i][2+j+d_NEQU*lC] - average.dot_product(Left2Right))/Left2Right.L2Square());
-                        // fout <<"\tRight value:"<<U[i][2+j+d_NEQU*rC]<<";"<<"Left value:"<<U[i][2+j+d_NEQU*lC]<<'\n';
-                        // fout <<"\tgradEdge:"<<gradEdge[j][0]<<","<<gradEdge[j][1]<<'\n';
                     }
-                    // fout <<"var "<<d_dim<<'\n';
-                    // fout <<"\tLeft Grad:"<<gradT[i][lC][0]<<","<<gradT[i][lC][1]<<'\n';
-                    // fout <<"\tRight Grad:"<<gradT[i][lC][0]<<","<<gradT[i][lC][1]<<'\n';
                     average = (gradT[i][lC] + gradT[i][rC])*0.5;
-                    // fout <<"\taverage:"<<average[0]<<","<<average[1]<<'\n';
                     double rightT = U[i][1+d_NEQU*rC]/U[i][0+d_NEQU*rC];
                     double leftT = U[i][1+d_NEQU*lC]/U[i][0+d_NEQU*lC];
                     gradEdge[d_dim] = average + Left2Right*((rightT - leftT - average.dot_product(Left2Right))/Left2Right.L2Square());
-                    // fout <<"\tRight value:"<<rightT<<";"<<"Left value:"<<leftT<<'\n';
-                    // fout <<"\tgradEdge:"<<gradEdge[d_dim][0]<<","<<gradEdge[d_dim][1]<<'\n';
                 }
                 else
                 {
@@ -184,10 +162,6 @@ public:
                     double taoxx = efficient*(2.0*gradEdge[0][0] - gradEdge[1][1]);
                     double taoyy = efficient*(2.0*gradEdge[1][1] - gradEdge[0][0]);
                     double taoxy = mu_edge[i][k]*(gradEdge[0][1] + gradEdge[1][0]);
-                    // fout<<"tao\n";
-                    // fout<<'\t'<<efficient<<" * (2.0*"<<gradEdge[0][0] <<"-"<< gradEdge[1][1]<<") = "<<taoxx<<'\n';
-                    // fout<<'\t'<<efficient<<" * (2.0*"<<gradEdge[1][1] <<"-"<< gradEdge[1][1]<<") = "<<taoxx<<'\n';
-                    // fout<<'\t'<<efficient<<" * (2.0*"<<gradEdge[0][1] <<"+"<< gradEdge[1][0]<<") = "<<taoxx<<'\n';
                     
                     tao[0][0] = taoxx;
                     tao[1][1] = taoyy;
@@ -206,17 +180,7 @@ public:
                     // velocity_edge.dot_product(tao[1])-qy).dot_product(curEdge.normal_vector())*curEdge.area();
                     //Fv[2] = tao[0].dot_product(curEdge.normal_vector())*curEdge.area();
                     // Fv[3] = tao[1].dot_product(curEdge.normal_vector())*curEdge.area();
-                    // for(int j = 0;j<4;j++)
-                    // {
-                    //     if(abs(Fv[j])>0.8)
-                    //     {
-                    //         std::cout<<j<<"'s wrong"<<Fv[j]<<"\n";
-                    //         std::cout<<"Tao:"<<taoxx<<" "<<taoyy<<" "<<taoxy<<'\n';
-                    //         std::cout<<"qx:"<<qx<<" "<<qy<<'\n';
-                    //         std::cout<<velocity_edge[0]<<" "<<velocity_edge[1]<<'\n';
-                    //         // std::cin.get();
-                    //     }
-                    // }
+                    
                     if (lC >= 0) // Left plus right minus
                     {
                         for (int j = 0; j < d_NEQU; j++)

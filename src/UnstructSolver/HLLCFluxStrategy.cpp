@@ -76,7 +76,7 @@ void HLLCFluxStrategy::computeFlux()
                 double Sm = (density_righ * Vn_righ * (Sr - Vn_righ) - density_left * Vn_left * (Sl - Vn_left) + pressure_left - pressure_righ) / (density_righ * (Sr - Vn_righ) - density_left * (Sl - Vn_left));
                 double p_star = density_left * (Vn_left - Sl) * (Vn_left - Sm) + pressure_left;
                 double p_star_scratch = density_righ * (Vn_righ - Sr) * (Vn_righ - Sm) + pressure_righ;
-                if (fabsf64(p_star_scratch - p_star) < 1e-10 or k < curBlk.d_nFluxedEs)
+                if (fabsf64(p_star_scratch - p_star) < 1e-10)
                 {
                 }
                 else

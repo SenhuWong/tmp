@@ -6,7 +6,9 @@ double computeEdgeNormal(int dim, double xv[4][3], int nvert, double xnorm[3], b
 #include "mpi.h"
 #include <hdf5.h>
 #include <algorithm>
-
+#include <iostream>
+#include <fstream>
+#include <vector>
 class PressureHolder2D;
 //Increasing ranking: e1<e2
 bool rankWithXY(PressureHolder2D &e1,PressureHolder2D &e2);
@@ -52,7 +54,7 @@ ViscousFlow2D::ViscousFlow2D(UnstructTopologyHolder *hder)
     limiter->setComm(cur_proc, num_proc);
 
 #endif // DEBUG
-    TopologyHolderStrategy::set_fs_variable2(0.8, 10, 1.225, 101325, 500);
+    TopologyHolderStrategy::set_fs_variable2(0.85, 0, 1.225, 101325, 2000);
     //
     TopologyHolderStrategy::update_nondim_variable();
     d_cfluxComputer = new HLLCFluxStrategy(d_hder, this, limiter);
@@ -232,7 +234,7 @@ void ViscousFlow2D::updateFlux(int istage)
     d_vfluxComputer->computeFlux(istage);
 }
 
-void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
+void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind, int step)
 {
     auto& curBlk = d_hder->blk2D[mesh_ind];
     // int
@@ -281,7 +283,7 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
                 if(curEdge.normal_vector()[1]>0)//Upper half
                 {
                     //std::cout<<"Proc "<<cur_proc<<" found one lower half"<<'\n';
-                    count_average[ptId] = -fabsf64(count_average[ptId]);
+                    count_average[ptId] = -std::abs(count_average[ptId]);
                 }
                 wallNodeInds->insert(ptId);
             }
@@ -289,7 +291,11 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
     }
     int nlocalWall = wallNodeInds->size();
     //Xloc,Yloc,Count,
-    double* realData = new double[nlocalWall*4];
+    double* realData;
+    if(nlocalWall>0)
+    {
+        realData = new double[nlocalWall*4];
+    }
     int m = 0;
     for(auto iter = wallNodeInds->begin();iter!=wallNodeInds->end();iter++)
     {
@@ -341,7 +347,7 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
 
     hid_t dataspace_id = H5Screate_simple(2,dims1,NULL);
 
-    hid_t dataset_id = H5Dcreate(file_id,"Cp",H5T_NATIVE_DOUBLE,dataspace_id,
+    hid_t dataset_id = H5Dcreate(file_id,("Cp"+std::to_string(step)).c_str(),H5T_NATIVE_DOUBLE,dataspace_id,
                                 H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT);
 
     //Now each Proc has its own slice to fill in.
@@ -369,7 +375,7 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
     if(cur_proc==0)
     {
         file_id = H5Fopen(filename.c_str(),H5F_ACC_RDWR,H5P_DEFAULT);
-        dataset_id = H5Dopen(file_id,"Cp",H5P_DEFAULT);
+        dataset_id = H5Dopen(file_id,("Cp"+std::to_string(step)).c_str(),H5P_DEFAULT);
 
         dataspace_id =H5Dget_space(dataset_id);
         double* buffer = new double[nEachLocalWall[num_proc]*4];
@@ -421,7 +427,7 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
         }
         int nCp = m/4;
         std::ofstream fout;
-        fout.open("Cp");
+        fout.open("Cp_"+std::to_string(step));
         fout<<"Title = \"Dussin_exp\"\n";
         fout<<"VARIABLES = \"X\",\"Cp\"\n";
         fout<<"ZONE T=\"Dussin_exp\", I = "<<nCp+1<<", F=POINT\n";
@@ -450,185 +456,13 @@ void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
         status = H5Fclose(file_id);
         delete[] buffer;
     }
-
-    delete[] nEachLocalWall;
-
-}
-
-
-// void ViscousFlow2D::outPutCp(std::string& filename, int mesh_ind)
-// {
-//     auto& curBlk = d_hder->blk2D[mesh_ind];
-//     curBlk.bindCurPoints();
-//     std::set<int,std::less<int>>* recvCellSet = curBlk.getRecvIndSet();
-//     std::vector<double> raw_data;
-//     std::set<int,std::less<int>>* wallNodeInds;
-//     for(int k = 0;k<d_hder->nEdges(mesh_ind);k++)
-//     {
-//         auto& curEdge = curBlk.d_localEdges[k];
-//         int lC = curEdge.lCInd();
-//         int rC = curEdge.rCInd();
-//         if(rC==GeomElements::edge3d<2>::BoundaryType::WALL)
-//         {
-//             for(int j = 0;j<curEdge.size();j++)
-//             {
-//                 int pt = curEdge.pointInd(j);
-//                 if(recvCellSet->find(pt)==recvCellSet->end())
-//                 {
-//                     wallNodeInds->insert(pt);
-//                 }
-//             }
-//         }
-//     }
-//     int* count_of_upper = new int[wallNodeInds->size()];
-//     int* count_average = new int[wallNodeInds->size()];
-//     double* cp_average = new double[wallNodeInds->size()];
-//     double* x_location = new double[wallNodeInds->size()];
-//     double* y_location = new double[wallNodeInds->size()];
-//     for(int i = 0;i<wallNodeInds->size();i++)
-//     {
-//         count_of_upper[i] = 0;
-//         count_average[i] = 0;
-//         cp_average[i] = 0.0;
-//     }
-
-//     for(int k = 0;k<d_hder->nEdges(mesh_ind);k++)
-//     {
-//         auto& curEdge = curBlk.d_localEdges[k];
-//         int lC = curEdge.lCInd();
-//         int rC = curEdge.rCInd();
-//         if(rC==GeomElements::edge3d<2>::BoundaryType::WALL)
-//         {
-//             for(int j = 0;j<curEdge.size();j++)
-//             {
-//                 int pt = curEdge.pointInd(j);
-//                 if(recvCellSet->find(pt)!=recvCellSet->end())
-//                 {
-//                     int offset = 0;
-//                     auto iter = recvCellSet->begin();
-//                     while (*iter!= pt)
-//                     {
-//                         ++offset;
-//                         ++iter;
-//                     }
-//                     {
-//                         count_of_upper[offset] += curEdge.normal_vector()[1]>0 ? 1:-1;
-//                         cp_average[offset] += U[mesh_ind][1+d_NEQU*lC];
-//                         count_average[offset] += 1;
-//                         x_location[offset] = curBlk.d_localPoints[offset].d_pos[0];
-//                         y_location[offset] = curBlk.d_localPoints[offset].d_pos[1];
-//                     }
-//                 }
-//             }
-//             //Check if lC is inside the recvCell
-//         }
-//     }
-//     double fs_rhoV2 = fsnd_density*(fsnd_velocity_components[0]*fsnd_velocity_components[0]+fsnd_velocity_components[1]*fsnd_velocity_components[1]);
-//     for(int i = 0;i<wallNodeInds->size();i++)
-//     {
-//         cp_average[i] = cp_average[i]/count_average[i];
-//         cp_average[i] = (cp_average[i] - fsnd_pressure)*2/fs_rhoV2;
-//     }
-
-//     int nlocalWall = wallNodeInds->size();
-//     for(int i = 0;i<wallNodeInds->size();i++)
-//     {
+    delete[] wallNodeInds;
+    delete[] p_average;
+    delete[] count_average;
+    if(nlocalWall>0)
+    {
+        delete[] realData;
         
-//         raw_data.push_back(x_location[i]);
-//         raw_data.push_back(y_location[i]);
-//         raw_data.push_back(count_of_upper[i]);
-//         raw_data.push_back(cp_average[i]);
-//     }
-
-//     delete[] recvCellSet;
-//     int* nEachLocalWall = new int[num_proc+1];
-
-//     MPI_Allgather(&nlocalWall,1,MPI_INT,nEachLocalWall+1,1,MPI_INT,MPI_COMM_WORLD);
-
-//     nEachLocalWall[0] = 0;
-//     for(int i = 0;i<num_proc;i++)
-//     {
-//         nEachLocalWall[i+1] = nEachLocalWall[i] + nEachLocalWall[i+1];
-//     }
-    
-//     //I'm using HDF5 Parallel IO feature for this shit.
-    
-//     MPI_Comm comm = MPI_COMM_WORLD;
-//     MPI_Info info = MPI_INFO_NULL;
-    
-
-
-
-//     hsize_t dims1[2];
-
-//     hid_t acc_tpl = H5Pcreate(H5P_FILE_ACCESS);
-
-//     herr_t status = H5Pset_fapl_mpio(acc_tpl,comm,info);
-    
-//     hid_t file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC,H5P_DEFAULT,acc_tpl);
-
-//     status = H5Pclose(acc_tpl);
-    
-//     dims1[0] = nEachLocalWall[num_proc];
-//     dims1[1] = 4;
-
-//     hid_t dataspace_id = H5Screate_simple(2,dims1,NULL);
-
-//     hid_t dataset_id = H5Dcreate(file_id,"Cp",H5T_NATIVE_DOUBLE,dataspace_id,
-//                                 H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT);
-
-//     //Now each Proc has its own slice to fill in.
-    
-//     if(nEachLocalWall[cur_proc+1]-nEachLocalWall[cur_proc]!=0)
-//     {
-//         hsize_t count[2] = {nlocalWall,4};
-//         hsize_t offset[2] = {nEachLocalWall[cur_proc],0};
-//         hsize_t stride[2] = {1,1};
-//         hsize_t block[2] = {1,1};
-//         //Need to write in
-
-//         hid_t memspace_id = H5Screate_simple(2,count,NULL);
-
-//         status = H5Sselect_hyperslab(dataspace_id,H5S_SELECT_SET, offset, stride, count, block);
-
-//         status = H5Dwrite(dataset_id,H5T_NATIVE_DOUBLE,memspace_id,dataspace_id,H5P_DEFAULT,raw_data.data());
-
-//         status = H5Sclose(memspace_id);
-//     }
-//     status = H5Sclose(dataspace_id);
-//     status = H5Dclose(dataset_id);
-//     status = H5Fclose(file_id);
-
-//     MPI_Barrier(MPI_COMM_WORLD);
-//     if(cur_proc==0)
-//     {
-//         file_id = H5Fopen(filename.c_str(),H5F_ACC_RDWR,H5P_DEFAULT);
-//         dataset_id = H5Dopen(file_id,"Cp",H5P_DEFAULT);
-
-//         dataspace_id =H5Dget_space(dataset_id);
-//         double* buffer = new double[nEachLocalWall[num_proc]*4];
-//         status = H5Dread(dataset_id,H5T_NATIVE_DOUBLE,H5S_ALL,dataspace_id,H5P_DEFAULT,buffer);
-//         std::vector<PressureHolder2D> holderVector;
-//         for(int i = 0;i<nEachLocalWall[num_proc];i++)
-//         {
-//             holderVector.push_back(PressureHolder2D(buffer[4*i],buffer[4*i+1],buffer[4*i+2],buffer[4*i+3]));
-//         }
-//         std::sort(holderVector.begin(),holderVector.end(),rankWithXY);
-//         for(int i = 0;i<nEachLocalWall[num_proc];i++)
-//         {
-//             buffer[4*i] = holderVector[i].center[0];
-//             buffer[4*i+1] = holderVector[i].center[1];
-//             buffer[4*i+2] = holderVector[i].normal_y;
-//             buffer[4*i+3] = holderVector[i].cp;
-//         }
-//         status = H5Dwrite(dataset_id,H5T_NATIVE_DOUBLE,H5S_ALL,dataspace_id,H5P_DEFAULT,buffer);
-
-//         status = H5Sclose(dataspace_id);
-//         status = H5Dclose(dataset_id);
-//         status = H5Fclose(file_id);
-//         delete[] buffer;
-//     }
-
-//     delete[] nEachLocalWall;
-
-// }
+    }
+    delete[] nEachLocalWall;
+}

@@ -130,7 +130,7 @@ void Orchestra::performGeometricRefineOverset()
     int dim = samrai->geo_model->d_dim.getValue();
     std::string local_filename = "aaa_rd_CartGrids" + std::to_string(cur_proc) + ".dat";
     std::string global_filename = "aaa_rd_CartBlocks" + std::to_string(cur_proc) + ".dat";
-    std::ofstream fout;
+
     //Looks like orchestra need a recorder for time
     samrai->make_geometric_refine();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -162,28 +162,6 @@ void Orchestra::performGeometricRefineOverset()
     // return;
     MPI_Barrier(MPI_COMM_WORLD);
     tg->performConnectivityAMR();
-
-    // fout.open(local_filename);
-    // fout << nblocksin << '\n';
-    // for (int i = 0; i < nblocksin; i++)
-    // {
-    //     fout << i << '\t' << q[i] << '\t' << ibl[i] << '\n';
-    // }
-    // fout.close();
-    // fout.open(global_filename);
-    // fout << ngridsin << '\t' << nf << '\t' << qstride << '\t' << qnodesize << '\t' << '\n';
-    // int iOffset = 5 + 2 * dim;
-    // int rOffset = 2 * dim;
-    // for (int i = 0; i < ngridsin; i++)
-    // {
-    //     fout << i << '\t';
-    //     for (int j = 0; j < iOffset; j++)
-    //     {
-    //         fout << idata[i * iOffset + j] << '\t';
-    //     }
-    //     fout << '\n';
-    // }
-    // fout.close();
     MPI_Barrier(MPI_COMM_WORLD);
 }
 void Orchestra::init()

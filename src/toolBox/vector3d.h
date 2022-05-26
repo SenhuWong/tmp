@@ -208,37 +208,3 @@ namespace GeomElements
 	}
 
 };
-
-// template <int ndim, typename T>
-// std::ofstream &operator<<(std::ofstream &sm, GeomElements::vector3d<ndim, T> &v)
-// {
-// 	//sm << "-----neo-cell-----\n";
-// 	for (int i = 0; i < v.size(); i++)
-// 	{
-// 		sm << v[i]<<'\t';//c.d_boundingPoints[c.pointInd(i)];
-// 	}
-// 	sm << '\n';
-// 	return sm;
-// }
-// template <int ndim, typename T>
-// std::ofstream &operator<<(std::ofstream &sm,GeomElements::vector3d<ndim, T> &v)
-// {
-// 	//sm << "-----neo-cell-----\n";
-// 	for (int i = 0; i < v.size(); i++)
-// 	{
-// 		sm << v[i]<<'\t';//c.d_boundingPoints[c.pointInd(i)];
-// 	}
-// 	sm << '\n';
-// 	return sm;
-// }
-// template <int ndim, typename T>
-// std::ofstream &operator<<(std::ofstream &sm,const GeomElements::vector3d<ndim, T> &v)
-// {
-// 	//sm << "-----neo-cell-----\n";
-// 	for (int i = 0; i < v.size(); i++)
-// 	{
-// 		sm << v[i]<<'\t';//c.d_boundingPoints[c.pointInd(i)];
-// 	}
-// 	sm << '\n';
-// 	return sm;
-// }

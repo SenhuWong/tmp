@@ -214,5 +214,5 @@ public:
     }
 
     
-    void outPutCp(std::string& filename, int mesh_ind);
+    void outPutCp(std::string& filename, int mesh_ind, int step);
 };

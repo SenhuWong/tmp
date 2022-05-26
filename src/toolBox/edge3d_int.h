@@ -238,15 +238,3 @@ namespace GeomElements
 		}
 	}
 }
-// This function must be called only after static binding is done
-template <int ndim>
-std::ofstream &operator<<(std::ofstream &sm, const GeomElements::edge3d<ndim> &e)
-{
-	sm << "-----neo-edge-----\n";
-	for (int i = 0; i < e.size(); i++)
-	{
-		sm << e.point(i);
-	}
-	sm << "area: " << e.area() << "normal: " << e.normal_vector();
-	return sm;
-}

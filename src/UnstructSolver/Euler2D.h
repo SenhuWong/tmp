@@ -157,5 +157,5 @@ public:
     
 //These are all about writing
 
-    void outPutCp(std::string& filename, int mesh_ind);
+    void outPutCp(std::string& filename, int mesh_ind, int step);
 };

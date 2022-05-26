@@ -366,7 +366,7 @@ void Euler2D::updateFlux()
 
 // }
 
-void Euler2D::outPutCp(std::string& filename, int mesh_ind)
+void Euler2D::outPutCp(std::string& filename, int mesh_ind, int step)
 {
     auto& curBlk = d_hder->blk2D[mesh_ind];
     // int
@@ -415,7 +415,7 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
                 if(curEdge.normal_vector()[1]>0)//Upper half
                 {
                     //std::cout<<"Proc "<<cur_proc<<" found one lower half"<<'\n';
-                    count_average[ptId] = -std::abs<int>(count_average[ptId]);
+                    count_average[ptId] = -std::abs(count_average[ptId]);
                 }
                 wallNodeInds->insert(ptId);
             }
@@ -423,7 +423,11 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
     }
     int nlocalWall = wallNodeInds->size();
     //Xloc,Yloc,Count,
-    double* realData = new double[nlocalWall*4];
+    double* realData;
+    if(nlocalWall>0)
+    {
+        realData = new double[nlocalWall*4];
+    }
     int m = 0;
     for(auto iter = wallNodeInds->begin();iter!=wallNodeInds->end();iter++)
     {
@@ -475,7 +479,7 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
 
     hid_t dataspace_id = H5Screate_simple(2,dims1,NULL);
 
-    hid_t dataset_id = H5Dcreate(file_id,"Cp",H5T_NATIVE_DOUBLE,dataspace_id,
+    hid_t dataset_id = H5Dcreate(file_id,("Cp"+std::to_string(step)).c_str(),H5T_NATIVE_DOUBLE,dataspace_id,
                                 H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT);
 
     //Now each Proc has its own slice to fill in.
@@ -503,7 +507,7 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
     if(cur_proc==0)
     {
         file_id = H5Fopen(filename.c_str(),H5F_ACC_RDWR,H5P_DEFAULT);
-        dataset_id = H5Dopen(file_id,"Cp",H5P_DEFAULT);
+        dataset_id = H5Dopen(file_id,("Cp"+std::to_string(step)).c_str(),H5P_DEFAULT);
 
         dataspace_id =H5Dget_space(dataset_id);
         double* buffer = new double[nEachLocalWall[num_proc]*4];
@@ -532,13 +536,13 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
             TheSame=true;
             while(TheSame)
             {
-                if(std::abs<double>(holderVector[cur].center[0]-holderVector[next].center[0])>0.0001)
+                if(fabsf64(holderVector[cur].center[0]-holderVector[next].center[0])>0.0001)
                 {
                     TheSame =false;
                 }
                 else
                 {
-                    if(std::abs<double>(holderVector[next].normal_y)>std::abs<double>(holderVector[cur].normal_y))
+                    if(fabsf64(holderVector[next].normal_y)>fabsf64(holderVector[cur].normal_y))
                     {
                         buffer[m-1] = holderVector[next].cp;
                         buffer[m-2] = holderVector[next].normal_y;
@@ -555,7 +559,7 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
         }
         int nCp = m/4;
         std::ofstream fout;
-        fout.open("Cp");
+        fout.open("Cp_"+std::to_string(step));
         fout<<"Title = \"Dussin_exp\"\n";
         fout<<"VARIABLES = \"X\",\"Cp\"\n";
         fout<<"ZONE T=\"Dussin_exp\", I = "<<nCp+1<<", F=POINT\n";
@@ -584,7 +588,13 @@ void Euler2D::outPutCp(std::string& filename, int mesh_ind)
         status = H5Fclose(file_id);
         delete[] buffer;
     }
-
+    delete[] wallNodeInds;
+    delete[] p_average;
+    delete[] count_average;
+    if(nlocalWall>0)
+    {
+        delete[] realData;
+        
+    }
     delete[] nEachLocalWall;
-
 }
