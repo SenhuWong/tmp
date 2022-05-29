@@ -564,12 +564,12 @@ void unstruct_serial_v()
         for(int i = 0;i<5001;i++)
         {
             lusgs_integrator->singleStepSerial(i);
-            std::cout<<i<<"Implicit Serial\n";
-            // if(i%500==0)
-            // {
-                // std::cout<<i<<"Implicit Serial"<<'\n';
-                flower->writeCellData("cellDataSerial_LUSGS_"+std::to_string(i),0,0,flower->getU());
-            // }
+            // std::cout<<i<<"Implicit Serial\n";
+            // // if(i%500==0)
+            // // {
+            //     // std::cout<<i<<"Implicit Serial"<<'\n';
+            //     flower->writeCellData("cellDataSerial_LUSGS_"+std::to_string(i),0,0,flower->getU());
+            // // }
         }
     }
 }
@@ -867,7 +867,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            unstruct_main();
+            unstruct_parallelv();
         }
     }
 }
