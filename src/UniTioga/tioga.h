@@ -53,6 +53,7 @@ namespace TIOGA
     class tioga
     {
     private:
+    public:
         int d_dim = 2;
         int nblocks = 0;
         int nblocksq = 0;
@@ -121,7 +122,12 @@ namespace TIOGA
                               int *wbcnode, int *obcnode, int ntypes, int *nv, int *nc, int **vconn,
                               uint64_t *cell_gid = NULL, uint64_t *node_gid = NULL);
         void registerGridData(int btag, BlockInfo *bi);
-        //void registerSolution(int btag, double* q);
+        void registerSolution(int btag, double* q)
+        {
+            auto idxit = tag_iblk_map.find(btag);
+            int iblk = idxit->second;
+            qblock[iblk] = q;
+        }
         void registerGlobalBoundary(int btag, BlockInfo *bi);
         void registerFromFeeder(TiogaFeeder *fder);
         void profile(void);
@@ -140,7 +146,7 @@ namespace TIOGA
 
         /** update data */
 
-        //void dataUpdate(int nvar, int interptype, int at_points = 0);
+        void dataUpdate(int nvar, int interptype, int at_points = 0);
 
         //void dataUpdate_AMR(int nvar, int interptype);
 
@@ -209,6 +215,14 @@ namespace TIOGA
             int iblk = idxit->second;
             auto &mb = mblocks[iblk];
             mb->set_cell_iblank(ib_cell);
+        }
+
+        void set_node_iblank(int btag, int *ib_node)
+        {
+            auto idxit = tag_iblk_map.find(btag);
+            int iblk = idxit->second;
+            auto &mb = mblocks[iblk];
+            mb->set_node_iblank(ib_node);
         }
 
         void setcallback(void (*f1)(int *, int *),

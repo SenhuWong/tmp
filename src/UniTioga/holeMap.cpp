@@ -311,7 +311,7 @@ void tioga::outPutQuery(const std::string &filename)
         std::cout << mb->nsearch << " nodes to search on proc " << myid << " block " << i << "\n";
         for (int j = 0; j < mb->nsearch; j++)
         {
-            if (mb->donorId[j] > 0)
+            if (mb->donorId[j] >= 0)
             {
                 for (int k = 0; k < d_dim; k++)
                 {
@@ -350,34 +350,3 @@ void tioga::outPutCartQuery(const std::string &filename)
         fout.close();
     }
 }
-
-// void tioga::outPutGoodQuery(const std::string& filename)
-// {
-//     std::ofstream fout;
-
-//     for (int i = 0; i < nblocks; i++)
-//     {
-
-//         std::string localFilename = filename + std::to_string(mtags[i]) + std::to_string(myid) + ".dat";
-//         fout.open(localFilename);
-//         if (!fout.is_open())
-//         {
-//             std::cout << "OutputGoodQuery Failure\n";
-//             return;
-//         }
-//         auto& mb = mblocks[i];
-//         std::cout << mb->nsearch << " nodes to search\n";
-//         for (int j = 0; j < mb->nsearch; j++)
-//         {
-//             if (mb->good_or_bad[j] == -1)
-//             {
-//                 for (int k = 0; k < d_dim; k++)
-//                 {
-//                     fout << mb->xsearch[d_dim * j + k] << " ";
-//                 }
-//                 fout << '\n';
-//             }
-//         }
-//         fout.close();
-//     }
-// }

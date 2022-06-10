@@ -15,7 +15,7 @@
 #include "UnstructSolver/Euler2D.h"
 #include "UnstructSolver/ViscousFlow2D.h"
 #include "UnstructSolver/RungeKuttaStrategy.h"
-#include "UnstructSolver/LU_SGS_Strategy.h"
+#include "UnstructSolver/LUSGS_Integrator.h"
 #include "reader/CobaltReader.h"
 #include "Orchestra.h"
 #include "UniTioga/tioga.h"
@@ -58,9 +58,9 @@ int tioga_main()
     tg->setCommunicator(MPI_COMM_WORLD, cur_proc, num_proc);
     int mexclude = 1;
     tg->setMexclude(&mexclude);
-    bool backgrounded = false;
+    bool backgrounded = true;
     bool backgrounded2D = false;
-    bool backgrounded3D = false;
+    bool backgrounded3D = true;
     if (backgrounded)
     {
         if(backgrounded2D)
@@ -196,8 +196,6 @@ int tioga_main()
     tg->registerFromFeeder(rd);
     
     tg->profile();
-    MPI_Finalize();
-    return 1;
     tg->reResolution();
     
     tg->performConnectivity();
@@ -523,34 +521,47 @@ void unstruct_serial_v()
     // rd->addFile("naca0012.grd");
     rd->setOverSign(-2);
     rd->setWallSign(-1);
-    rd->addFile("mix_element_laminar.grd");
+    rd->addFile("raetest.grd");
     rd->setDim(2);
     std::cin.get();
     rd->readAll();
 
     std::cout<<"ReadAll done\n";
-    std::cin.get();
+    // std::cin.get();
     rd->writeFiles();
     int* nc;
     int** indC;
     rd->takeBoundary(-1,&nc,&indC);
     UnstructTopologyHolder* integrator = new UnstructTopologyHolder(rd);
     std::cout<<"Holder initailization done\n";
-    std::cin.get();
+    // std::cin.get();
     ViscousFlow2D* flower = new ViscousFlow2D(integrator);
     flower->test_unwantedSweep(indC,nc);
     std::cout<<"Flower initialization done\n";
-    std::cin.get();
+    // std::cin.get();
     //RungeKuttta
-    bool use_implicit = true;
+    bool use_implicit = false;
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,flower,5);
-        rk_integrator->initialize();
-        for(int i = 0;i<40001;i++)
+        RungeKuttaStrategy* rk_sstkw_integrator = new RungeKuttaStrategy(integrator,flower->d_turbulentModel,5);
+        rk_integrator->initializeData();
+        // rk_sstkw_integrator->initialize();
+        for(int i = 0;i<20001;i++)
         {
-            rk_integrator->singleStepSerial(i);
-            if(i%5000==0)
+            // std::cout<<"RungeKutta::step "<<i<<'\n';
+            rk_integrator->preprocessUpdate();
+            rk_sstkw_integrator->preprocessUpdate();
+            for(int j = 0;j<5;j++)
+            {
+                // std::cout<<"RungeKutta:stage "<<j<<'\n';
+                rk_integrator->UpdateSerial(j);
+                rk_sstkw_integrator->UpdateSerial(j);
+            }
+            // rk_integrator->postprocessUpdate();
+           // std::cout<<'\t'<<i<<'\n';
+            // rk_integrator->singleStepSerial(i);
+            if(i%500==0)
             {
                 std::cout<<i<<"\n";
                 flower->writeCellData("cellDataSerial_"+std::to_string(i),0,0,flower->getU());
@@ -559,8 +570,8 @@ void unstruct_serial_v()
     }
     else
     {
-        LUSGSStrategy* lusgs_integrator = new LUSGSStrategy(integrator,flower);
-        lusgs_integrator->initialize();
+        LUSGSIntegrator* lusgs_integrator = new LUSGSIntegrator(integrator,flower);
+        lusgs_integrator->initializeData();
         for(int i = 0;i<5001;i++)
         {
             lusgs_integrator->singleStepSerial(i);
@@ -602,26 +613,31 @@ void unstruct_parallelv()
     rd->writeFiles();
     MPI_Barrier(MPI_COMM_WORLD);
     rd->performCommunication();
-    UnstructTopologyHolder* integrator = new UnstructTopologyHolder(rd);
+    UnstructTopologyHolder* integrator = new UnstructTopologyHolder();
+    integrator->initialize_integrator(rd);
+    
     integrator->arrange_communication();
     MPI_Barrier(MPI_COMM_WORLD);
     integrator->write("Meta");
     //
     //std::cout<<integrator->relatedProcs.size()<<"--------------------------"<<'\n';
-    ViscousFlow2D* flower = new ViscousFlow2D(integrator);
+    ViscousFlow2D* flower = new ViscousFlow2D();
+    flower->set_fs_variable2(0.85, 0.0, 1.225, 101325, 2000);
+    flower->initializeStrategy(integrator);
 
     flower->test_communication();
-    flower->test_partialcomm();
+    // flower->test_partialcomm();
     
     // flower->outPutNondim("NOndim",cur_proc);
-    
-    bool use_implicit = true;
+    flower->writeRawCellData("Distance",cur_proc,0,&(integrator->blk2D[0].wallCellDistance));
+    bool use_implicit = false;
     if(!use_implicit)
     {
-        RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,flower,5);
-        rk_integrator->initialize();
+        RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(5);
+        rk_integrator->initializeStrategy(integrator,flower);
+        rk_integrator->initializeData();
         simpleTimer timeIs;
-        for(int i = 0;i<10;i++)
+        for(int i = 0;i<100001;i++)
         {
             
             rk_integrator->singleStep(i);
@@ -642,19 +658,32 @@ void unstruct_parallelv()
     else
     {
         simpleTimer timeIs;
-        LUSGSStrategy* lusgs = new LUSGSStrategy(integrator,flower);
-        lusgs->initialize();
-        for(int i = 0;i<1000001;i++)
+        LUSGSIntegrator* lusgs = new LUSGSIntegrator();
+        lusgs->initializeStrategy(integrator,flower);
+        lusgs->initializeData();
+        for(int i = 0;i<15001;i++)
         {
+            // flower->d_turbulentModel->writeCellData("Rans"+std::to_string(i+1),cur_proc,0,flower->d_turbulentModel->getU());
             lusgs->singleStep(i);
+            // flower->d_turbulentModel->AllCellCommunication(flower->d_turbulentModel->getResidual());;
+            // flower->d_turbulentModel->writeCellData("Residual"+std::to_string(i+1),cur_proc,0,flower->d_turbulentModel->getResidual());
+            
+            // flower->d_turbulentModel->AllCellCommunication(flower->turbModelTimeStrategy->d_diagOperator);
+            // flower->d_turbulentModel->writeCellData("RansDiag"+std::to_string(i+1),cur_proc,0,flower->turbModelTimeStrategy->d_diagOperator);
+            
+            // flower->d_turbulentModel->AllCellCommunication(flower->turbModelTimeStrategy->d_deltaW1);
+            // flower->d_turbulentModel->writeCellData("RansForward"+std::to_string(i+1),cur_proc,0,flower->turbModelTimeStrategy->d_deltaW1);
+            
+            // flower->d_turbulentModel->AllCellCommunication(flower->turbModelTimeStrategy->d_deltaW);
+            // flower->d_turbulentModel->writeCellData("RansBackward"+std::to_string(i+1),cur_proc,0,flower->turbModelTimeStrategy->d_deltaW);
             if(i%5000==0)
             {
                 std::cout<<i<<'\n';
                 lusgs->postprocessUpdate();
                 flower->AllCellCommunication(flower->getU());
                 flower->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,flower->getU());
-                std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-                flower->outPutCp(Cp_name,0,i);
+            //     std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+            //     flower->outPutCp(Cp_name,0,i);
             }
         }
         std::cout<<"Finished?\n";
@@ -698,7 +727,7 @@ void unstruct_serial()
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,euler,5);
-        rk_integrator->initialize();
+        rk_integrator->initializeData();
         for(int i = 0;i<20000;i++)
         {
             rk_integrator->singleStepSerial(i);
@@ -711,9 +740,8 @@ void unstruct_serial()
     }
     else
     {
-        LUSGSStrategy* lusgs_integrator = new LUSGSStrategy(integrator,euler);
-        lusgs_integrator->initialize();
-        lusgs_integrator->checkEdgeCountSerial("Serial_edgeCount");
+        LUSGSIntegrator* lusgs_integrator = new LUSGSIntegrator(integrator,euler);
+        lusgs_integrator->initializeData();
         simpleTimer timeIs;
         for(int i = 0;i<10001;i++)
         {
@@ -779,7 +807,7 @@ void unstruct_main()
     if(!use_implicit)
     {
         RungeKuttaStrategy* rk_integrator = new RungeKuttaStrategy(integrator,euler,5);
-        rk_integrator->initialize();
+        rk_integrator->initializeData();
         
         for(int i = 0;i<20001;i++)
         {
@@ -804,18 +832,18 @@ void unstruct_main()
     else
     {
         simpleTimer timeIs;
-        LUSGSStrategy* lusgs = new LUSGSStrategy(integrator,euler);
-        lusgs->initialize();
-        for(int i = 0;i<5001;i++)
+        LUSGSIntegrator* lusgs = new LUSGSIntegrator(integrator,euler);
+        lusgs->initializeData();
+        for(int i = 0;i<50001;i++)
         {
             lusgs->singleStep(i);
             if(i%500==0)
             {
                 std::cout<<i<<'\n';
-                euler->AllCellCommunication(euler->getU());
-                euler->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,euler->getU());
-                std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
-                euler->outPutCp(Cp_name,0,i);
+                // euler->AllCellCommunication(euler->getU());
+                // euler->writeCellData("cellDataParallelLUSGS"+std::to_string(i+1),cur_proc,0,euler->getU());
+                // std::string Cp_name = "OneAndOnlyLegendaryCp.h5";
+                // euler->outPutCp(Cp_name,0,i);
             }
         }
         std::cout<<"Finished?\n";
@@ -832,9 +860,8 @@ void unstruct_main()
 void orchestra_main(int argc, char *argv[])
 {
     Orchestra *orchestra = new Orchestra(argc, argv);
-
     orchestra->init();
-    MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
     orchestra->finalize();
 
     //delete orchestra;
@@ -857,7 +884,7 @@ int main(int argc, char *argv[])
         orchestra_main(argc, argv);
     }
     bool unstruct_used = true;
-    bool serial_used = false;
+    bool serial_used = true;
     
     if(unstruct_used)
     {

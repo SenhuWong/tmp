@@ -69,6 +69,28 @@ bool rankWithXY(PressureHolder2D &e1,PressureHolder2D &e2)
     }
 }
 
+Euler2D::Euler2D()
+    :TopologyHolderStrategy()
+{
+
+}
+
+void Euler2D::initializeSubStrategy()
+{
+    cur_proc = d_hder->curproc;
+    num_proc = d_hder->numproc;
+    // Topology holder set
+    auto limiter = new Vankatakrishnan_Limiter<2>(d_hder, this);
+    d_fluxComputer = new HLLCFluxStrategy(d_hder, this, limiter);
+    d_fluxComputer->setComm(num_proc, cur_proc);
+
+    d_boundaryHandler = new BoundaryStrategy(d_hder,this);
+    // Allocate Data Storage for this problem
+    registerTopology();
+
+}
+
+
 Euler2D::Euler2D(UnstructTopologyHolder *hder)
     : TopologyHolderStrategy(hder, 4)
 {
@@ -109,6 +131,7 @@ void Euler2D::registerTopology()
     Residual = new double *[d_nmesh];
 
     // Compute Local dt
+    d_stableDt = new double*[d_nmesh];
     // dt = new double **[d_nmesh];
 
     // Allocate space for sndBuffer
@@ -121,7 +144,7 @@ void Euler2D::registerTopology()
         Residual[i] = new double [d_NEQU*d_hder->nCells(i)];
         gradU[i] = new GeomElements::vector3d<2, double> [d_NEQU*d_hder->nCells(i)];
         Spectrum_cell_c[i] = new double[d_hder->nCells(i)];
-
+        d_stableDt[i] = new double[d_hder->nCells(i)];
         U_edge[i] = new double [d_NEQU*d_hder->nEdges(i)];
     }
 }

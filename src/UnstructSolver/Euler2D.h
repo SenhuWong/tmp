@@ -5,7 +5,7 @@
 #include "FluxStrategy.h"
 // I am not ready to decide what's for name.
 #include "SAMRAI/tbox/InputDatabase.h"
-#include "TimeStrategy.h"
+#include "TimeIntegrator.h"
 #include "UnstructIntegrator.h"
 #include "BoundaryStrategy.h"
 class Euler2D : public TopologyHolderStrategy
@@ -35,8 +35,15 @@ private:
     // These should be called in the constructor given inputDatabase
     //  Allocate Data Storage
     void registerTopology();
+    int getNEquation() override
+    {
+        return 4;
+    }
 
 public:
+    Euler2D();
+
+    void initializeSubStrategy() override;
 
     Euler2D(UnstructTopologyHolder *hder); // I will add an input_db to read the freestream variable value.
 
@@ -57,14 +64,14 @@ public:
 
     void solveSpectralRadius();
 
-    void SolveTime(double** dt, double CFL)
+    void SolveTime(double CFL) override
     {
         for(int i = 0;i<d_nmesh;i++)
         {
             for(int j =0;j<d_hder->nCells(i);j++)
             {
                 auto& curCell = d_hder->blk2D[i].d_localCells[j];
-                dt[i][j] = CFL * curCell.volume()/Spectrum_cell_c[i][j];
+                d_stableDt[i][j] = CFL * curCell.volume()/Spectrum_cell_c[i][j];
             }
         }
     }
@@ -104,7 +111,7 @@ public:
     }
 
 
-    // This is intended to be called by TimeStrategy,should be an interface.
+    // This is intended to be called by TimeIntegrator,should be an interface.
     void preprocessAdvance(int istage)
     {
         ReconstructionInitial();
@@ -131,6 +138,12 @@ public:
         solveSpectralRadius();
         updateFlux();
     }
+
+    void postprocessAdvanceSerial(int istage)
+    {
+        std::cout<<"Do nothing and return\n";
+        return;
+    }
     
     void test_MultipleCommunication();
 
@@ -149,7 +162,7 @@ public:
         }
     }
 
-    void postprocessAdvance()
+    void postprocessAdvance(int iStage)
     {
     }
 

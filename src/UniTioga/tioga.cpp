@@ -181,23 +181,57 @@ void tioga::performConnectivity()
     }
     MPI_Barrier(MPI_COMM_WORLD);
     exchangeSearchData();
-    // outPutQuery("queries");
+    
     //The code here can't be replaced with auto& mb = mblocks[ib];
     //Why?
     for (int ib = 0; ib < nblocks; ib++)
     {
         mblocks[ib]->resetInterpData();
         mblocks[ib]->search();
-        //auto &mb = mblocks[ib];
-        //mb->ihigh = 0;
-        //mb->resetInterpData();
-        //mb->writeMandatoryReceptor("AfterExchangeSearch");
-        //mb->search();
-        //mb->writeCellFile("LordShowMeTheWay");
     }
+    outPutQuery("queries");
 
     std::cout << "Entering exchangeDonors\n";
     exchangeDonors(false);
+    // {
+    //     std::ofstream fout;
+    //     for(int ib=0;ib<nblocks;ib++)
+    //     {
+    //         fout.open("finalInterpValid_"+std::to_string(ib+1)+"_"+std::to_string(myid));
+    //         auto& mb = mblocks[ib];
+    //         for(int i = 0;i<mb->nsearch;i++)
+    //         {
+    //             int idnsearch = mb->interp2donor[i];
+    //             if(idnsearch>=0 and mb->interpList[idnsearch].cancel==0)
+    //             {
+    //                 for(int j = 0;j<d_dim;j++)
+    //                 {
+    //                     fout<< mb->xsearch[d_dim*i+j]<< '\t';
+    //                 }
+    //                 fout<< '\n';
+    //             }
+    //         }
+    //         fout.close();
+    //     }
+    //     for(int ib=0;ib<nblocks;ib++)
+    //     {
+    //         fout.open("finalInterpInValid_"+std::to_string(ib+1)+"_"+std::to_string(myid));
+    //         auto& mb = mblocks[ib];
+    //         for(int i = 0;i<mb->nsearch;i++)
+    //         {
+    //             int idnsearch = mb->interp2donor[i];
+    //             if(idnsearch>=0 and mb->interpList[idnsearch].cancel==1)
+    //             {
+    //                 for(int j = 0;j<d_dim;j++)
+    //                 {
+    //                     fout<< mb->xsearch[d_dim*i+j]<< '\t';
+    //                 }
+    //                 fout<< '\n';
+    //             }
+    //         }
+    //         fout.close();
+    //     }
+    // }
 
     reduce_fringes();
     for (int ib = 0; ib < nblocks; ib++)
@@ -216,6 +250,14 @@ void tioga::performConnectivity()
             //mb->getCellIblanks();
         }
         mblocks[ib]->writeCellFile2("iblank_cell", mblocks[ib]->iblank_cell);
+    }
+    if (qblock == NULL)
+    {
+        qblock = new double*[nblocks];
+        for(int ib = 0;ib <nblocks;ib++)
+        {
+            qblock[ib] = NULL;
+        }
     }
 }
 
@@ -275,16 +317,159 @@ void tioga::performConnectivityAMR()
     }
     for(int ib=0;ib<ncart;ib++)
     {
-        cb[ib].writeCellFile("IBLANKS_cb");
+        // cb[ib].writeCellFile("IBLANKS_cb");
     }
     
 }
 
-//void tioga::test_from_search(double* xsearches, int nsearches)
-//{
-//    auto& mb = mblocks[0];
-//    mb->isolated_search(nsearches, xsearches);
-//}
+
+void tioga::dataUpdate(int nvar,int interptype, int at_points)
+{
+    int **integerRecords;
+    double ** realRecords;
+    double ** qtmp;
+    int **itmp;
+    int nsend,nrecv;
+    int *sndMap,*rcvMap;
+    PACKET *sndPack,*rcvPack;
+    
+    for(int ib=0;ib<nblocks;ib++)
+    {
+        if(qblock[ib]==NULL)
+        {
+            printf("Solution data not set, cannot update\n");
+            return;
+        }
+    }
+    integerRecords = NULL;
+    realRecords = NULL;
+    itmp = NULL;
+    qtmp = NULL;
+
+    pc->getMap(&nsend,&nrecv,&sndMap,&rcvMap);
+    if(nsend==0)
+    {
+        return;
+    }
+    sndPack = new PACKET[nsend];
+    rcvPack = new PACKET[nrecv];
+
+    pc->initPackets(sndPack,rcvPack);
+    //
+    //Get the interpolated solution now
+    //
+    integerRecords = new int*[nblocks];
+    realRecords = new double*[nblocks];
+    for(int ib = 0;ib<nblocks;ib++)
+    {
+        integerRecords[ib] =NULL;
+        realRecords[ib] = NULL;
+    }
+    std::vector<int> nints(nblocks,0), nreals(nblocks,0);
+    std::vector<int> icount(nsend,0),dcount(nsend,0);
+
+    for(int ib=0;ib<nblocks;ib++)
+    {
+        auto& mb = mblocks[ib];
+        double* q = qblock[ib];
+        if(at_points==0)
+        {
+            mb->getInterpolatedSolution(&(nints[ib]),&(nreals[ib]),&(integerRecords[ib]),&(realRecords[ib]),
+            q,nvar,interptype);
+
+        }
+        else
+        {
+            throw std::runtime_error("Undefined at_points==1\n");
+        }
+        for(int i = 0;i<nints[ib];i++)
+        {
+            int k = integerRecords[ib][3*i];
+            sndPack[k].nints+=2;
+            sndPack[k].nreals+=nvar;
+        }
+    }
+    for(int k = 0;k<nsend;k++)
+    {
+        sndPack[k].intData = new int[sndPack[k].nints];
+        sndPack[k].realData = new double[sndPack[k].nreals];
+        icount[k] = dcount[k] = 0;
+    }
+    for(int ib = 0;ib<nblocks;ib++)
+    {
+        int m = 0;
+        for(int i = 0;i<nints[ib];i++)
+        {
+            int k = integerRecords[ib][3*i];//proc id
+            sndPack[k].intData[icount[k]++] = integerRecords[ib][3*i+1];//point id
+            sndPack[k].intData[icount[k]++] = integerRecords[ib][3*i+2];//block id
+            for(int j = 0;j<nvar;j++)
+            {
+                sndPack[k].realData[dcount[k]++] = realRecords[ib][m++];
+            }
+        }
+    }
+    //
+    // communicate the data across
+    //
+    pc->sendRecvPackets(sndPack,rcvPack);
+    //
+    // decode the packets and update the data.
+    //
+    std::ofstream fout;
+    fout.open("updatedNodes_"+std::to_string(myid));
+
+    for(int k = 0;k<nrecv;k++)
+    {
+        int l = 0;
+        int m = 0;
+        for(int i = 0;i<rcvPack[k].nints/2;i++)
+        {
+            int pointid = rcvPack[k].intData[l++];
+            int ib = rcvPack[k].intData[l++];
+            auto& mb = mblocks[ib];
+            for(int j = 0;j<d_dim;j++)
+            {
+                fout<< mb->x[d_dim*pointid+j]<<'\t';
+            }
+            fout <<'\n';
+            if(at_points==0)
+            {
+                double *q = qblock[ib];
+                mb->updateSolnData(pointid,&(rcvPack[k].realData[m]),q,nvar,interptype);
+            }
+            else
+            {
+                throw std::runtime_error("Undefined at_point==1\n");
+            }
+            m+=nvar;
+        }
+    }
+    fout.close();
+    //
+    // release all memory
+    //
+    pc->clearPackets(sndPack,rcvPack);
+    TIOGA_FREE(sndPack);
+    TIOGA_FREE(rcvPack);
+    if(integerRecords)
+    {
+        for(int ib = 0;ib<nblocks;ib++)
+        {
+            if(integerRecords[ib]) TIOGA_FREE(integerRecords[ib]);
+        }
+        TIOGA_FREE(integerRecords);
+    }
+    if(realRecords)
+    {
+        for(int ib = 0;ib<nblocks;ib++)
+        {
+            if(realRecords[ib]) TIOGA_FREE(realRecords[ib]);
+        }
+        TIOGA_FREE(realRecords);
+    }
+}
+
 
 void tioga::reduce_fringes()
 {

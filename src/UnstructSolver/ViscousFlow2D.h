@@ -6,8 +6,11 @@
 #include "BoundaryStrategy.h"
 #include "Vankatakrishnan_Limiter.hpp"
 #include "FluxStrategy.h"
-#include "TimeStrategy.h"
+#include "TimeIntegrator.h"
 #include "LaminarFluxStrategy.h"
+#include "LUSGS_Integrator.h"
+#include "SSTKWStrategy.h"
+
 
 class ViscousFlow2D : public TopologyHolderStrategy
 {
@@ -21,20 +24,31 @@ private:
     LaminarFluxStrategy *d_vfluxComputer = NULL;
     BoundaryStrategy * d_boundaryHandler = NULL;
 
+    
+
     double **Spectrum_cell_c = NULL;
     double **Spectrum_cell_v = NULL;
 
     double ** Residual = NULL;
     
-
 private:
     void registerTopology();
+    int getNEquation() override
+    {
+        return 4;
+    }
 
 public:
+    LUSGSIntegrator* turbModelTimeStrategy = NULL;
+    SSTkomegaModel<2>* d_turbulentModel = NULL;
 
     //Interfaces from TopologyHolderStrategy:
 
+    ViscousFlow2D()
+    {
 
+    }
+    void initializeSubStrategy() override;
     ViscousFlow2D(UnstructTopologyHolder *hder); // I will add an input_db to read the freestream variable value.
 
     // Initialize Data to t0
@@ -56,15 +70,7 @@ public:
     void solveSpectralRadius();
 
 
-    double getMuOverPrEdge(int curMesh,int curEdge) override
-    {
-        return d_vfluxComputer->getMuOverPrEdge(curMesh,curEdge);
-    }
-
-    double getMuOverPrCell(int curMesh,int curCell) override
-    {
-        return d_vfluxComputer->getMuOverPrCell(curMesh,curCell);
-    }
+    
 
     void updateFlux(int istage);
 
@@ -109,15 +115,49 @@ public:
         return Spectrum_cell_v;
     }
 
-    inline double **getMu() override
+    inline double getMuCell(int curMesh,int curCell) override
     {
-        return d_vfluxComputer->getMu();
+        if(isLaminar())
+        {
+            return d_vfluxComputer->getMuCell(curMesh,curCell); 
+        }
+        return d_vfluxComputer->getMuCell(curMesh,curCell) + d_turbulentModel->getMuCell(curMesh,curCell);
+        
     }
 
-    inline double **getMuEdge() override
+    inline double getMuEdge(int curMesh,int curEdge) override
     {
-        return d_vfluxComputer->getMuEdge();
+        if(isLaminar())
+        {
+            return d_vfluxComputer->getMuEdge(curMesh,curEdge);
+        }
+        return d_vfluxComputer->getMuEdge(curMesh,curEdge) + d_turbulentModel->getMuEdge(curMesh,curEdge);
+
     }
+
+    double getMuOverPrEdge(int curMesh,int curEdge) override
+    {
+        if(isLaminar())
+        {
+            return d_vfluxComputer->getMuOverPrEdge(curMesh,curEdge);
+        }
+        return d_vfluxComputer->getMuOverPrEdge(curMesh,curEdge) + d_turbulentModel->getMuOverPrEdge(curMesh,curEdge);
+    }
+
+    double getMuOverPrCell(int curMesh,int curCell) override
+    {
+        if(isLaminar())
+        {
+            return d_vfluxComputer->getMuOverPrCell(curMesh,curCell);
+        }
+        return d_vfluxComputer->getMuOverPrCell(curMesh,curCell) + d_turbulentModel->getMuOverPrCell(curMesh,curCell);
+    }
+
+    bool isLaminar()
+    {
+        return true;
+    }
+
 
     //Mandatory Interfaces(Requested by timeStrategy)
     void preprocessAdvance(int istage)
@@ -133,7 +173,10 @@ public:
         solveGradient(istage);
 
         d_vfluxComputer->computeMu();
-
+        if(!isLaminar())
+        {
+            d_turbulentModel->SolveTurbulenceEquation();
+        }
         //SpectralRadius need to add viscos terms, but I am not sure how.
         solveSpectralRadius();
         
@@ -166,20 +209,18 @@ public:
         // Get flux from left right value(or boundary)
         // And compute fluxsum
         updateFlux(istage);
-        return;
-        d_vfluxComputer->computeMu();
-        writeCellData("PrimVar"+std::to_string(istage),cur_proc,0,U);
-        writeRawCellData("mu_cell"+std::to_string(istage),cur_proc,0,getMu());
-        ReconstructionInitial();
-        updateEdgeValues();
-        solveGradient(istage);
-        solveSpectralRadius();
-        writeRawCellData("spectrum_c"+std::to_string(istage),cur_proc,0,Spectrum_cell_c);
-        writeRawCellData("spectrum_v"+std::to_string(istage),cur_proc,0,Spectrum_cell_v);
-        updateFlux(istage);
+    }
+
+    void postprocessAdvanceSerial(int iStage)
+    {
+        if(!isLaminar())
+        {
+             std::cout<<"chao guoran!!!1\n";
+            turbModelTimeStrategy->singleStepSerial(0);
+        }
     }
     
-    void SolveTime(double** dt, double CFL)
+    void SolveTime(double CFL)
     {
         for(int i = 0;i<d_nmesh;i++)
         {
@@ -187,14 +228,23 @@ public:
             for(int k =0;k<d_hder->nCells(i);k++)
             {
                 auto& curCell = curBlk.d_localCells[k];
-                dt[i][k] = CFL * curCell.volume()/(Spectrum_cell_c[i][k]+4.0*Spectrum_cell_v[i][k]);
+                if(!isLaminar())
+                {
+                    d_stableDt[i][k] = CFL * curCell.volume()/(Spectrum_cell_c[i][k]+4.0*Spectrum_cell_v[i][k]);
+                }
+                else
+                {
+                    d_stableDt[i][k] = CFL * curCell.volume()/(Spectrum_cell_c[i][k]);
+                }
+                
             }
         }
     }
 
-    void postprocessAdvance()
+    void postprocessAdvance(int iStage)
     {
-        //Do nothing;
+        if(!isLaminar())
+        turbModelTimeStrategy->singleStep(0);
     }
 
 

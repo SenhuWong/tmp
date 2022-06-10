@@ -77,7 +77,7 @@ public:
         double** U = d_hder_strategy->getU();
 
         // For far field boundary
-        double cc = 110.4/fs_Temperature;
+        double cc = 110.5/fs_Temperature;
         //
 
         GeomElements::vector3d<2, double> Leftvelocity;

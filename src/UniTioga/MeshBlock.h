@@ -243,6 +243,10 @@ public:
 	{
 		iblank_cell = iblank_cell_input;
 	}
+	void set_node_iblank(int* iblank_node_input)
+	{
+		iblank = iblank_node_input;
+	}
 	void setcallback(void (*f1)(int*, int*),
 		void (*f2)(int*, int*, double*),
 		void (*f3)(int*, double*, int*, double*),
@@ -315,32 +319,22 @@ public:
 		interpListSize = 0;
 	}
 	void reduce_fringes();
-
+private:
 	void outPutSearch(const std::string& filename);
-
 	void check_for_uniform_hex();
 
 	void create_hex_cell_map();
-
 	void checkContainment2(int* cellIndex, int adtElement, double* x2search);
+	
+public:
+	
+
 	void writeCellFile2(const std::string& filename, int* cellInfo);
 	void writeCellFile2(const std::string& filename, double* cellInfo);
 	void writeGridFile2(const std::string& filename, int* nodeInfo);
 	void writeGridFile2(const std::string& filename, double* nodeInfo);
-	void dummy_search();
-	int* good_or_bad = NULL;
-	//void search(bool useADT = false);
+
 	void writeOBBPair(const std::string& filename,OBB* obc);
-	void isolated_search(int nsearch, double* xsearch);
-	void reset_Iblank()
-	{
-		if (iblank) TIOGA_FREE(iblank);
-		iblank = new int[nnodes];
-		for (int i = 0; i < nnodes; i++)
-		{
-			iblank[i] = 1;
-		}
-	}
 	void set_Iblank(int pid, int value)
 	{
 		iblank[pid] = value;
@@ -375,4 +369,6 @@ public:
 	//int* gWbcNode;//Do i need the global index when no global index is maintained here?
 	//int* gObcNode;
 	void writeGridHDF(const std::string& filename);
+	void writeGridFile2(const std::string& filename, double* nodeInfo, int nvar);
+	void writeCellFile2(const std::string& filename,int nvar, double* cellInfo);
 };

@@ -1,0 +1,7 @@
+set(SRC ${SRC}
+#${CMAKE_CURRENT_SOURCE_DIR}/BlockInfo.cpp 
+
+${CMAKE_CURRENT_SOURCE_DIR}/CobaltReader.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/Reader.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/UnstructReader.cpp
+PARENT_SCOPE)

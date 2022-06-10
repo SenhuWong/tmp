@@ -26,10 +26,26 @@ public:
     {
         return mu_edge;
     }
-    // double **getSpectrum()
-    // {
-    //     return Spectrum_cell_v;
-    // }
+    double getMuCell(int curMesh,int curCell)
+    {
+        return mu[curMesh][curCell];
+    }
+    double getMuEdge(int curMesh,int curEdge)
+    {
+        return mu_edge[curMesh][curEdge];
+
+    }
+    double getMuOverPrCell(int curMesh,int curCell)
+    {
+        return mu[curMesh][curCell]/fs_Pr;
+
+    }
+    double getMuOverPrEdge(int curMesh,int curEdge)
+    {
+        return mu_edge[curMesh][curEdge]/fs_Pr;
+
+    }
+
 
     
     
@@ -59,7 +75,7 @@ public:
 
     void computeMu()
     {
-        const double cc = 110.4/fs_Temperature;
+        const double cc = 110.5/fs_Temperature;
         const double Gamma = 1.4;
         double T;
         double** U = d_hder_strategy->getU();
@@ -84,15 +100,6 @@ public:
 
     }
 
-    double getMuOverPrEdge(int curMesh,int curEdge)
-    {
-        return mu_edge[curMesh][curEdge]/fs_Pr;
-    }
-
-    double getMuOverPrCell(int curMesh,int curCell)
-    {
-        return mu[curMesh][curCell]/fs_Pr;
-    }
 
     void computeFlux()
     {
@@ -121,7 +128,8 @@ public:
                 auto& curEdge = curBlk.d_localEdges[k];
                 int lC = curEdge.lCInd();
                 int rC = curEdge.rCInd();
-                double efficient = 2.0/3.0*mu_edge[i][k];
+                double mu_at_face = d_hder_strategy->getMuEdge(i,k);
+                double efficient = 2.0/3.0*mu_at_face;
                 //First compute Gradient at Edge.
                 if(rC>=0)//Inner
                 {
@@ -161,15 +169,15 @@ public:
                     
                     double taoxx = efficient*(2.0*gradEdge[0][0] - gradEdge[1][1]);
                     double taoyy = efficient*(2.0*gradEdge[1][1] - gradEdge[0][0]);
-                    double taoxy = mu_edge[i][k]*(gradEdge[0][1] + gradEdge[1][0]);
+                    double taoxy = mu_at_face*(gradEdge[0][1] + gradEdge[1][0]);
                     
                     tao[0][0] = taoxx;
                     tao[1][1] = taoyy;
                     tao[0][1] = taoxy;
                     tao[1][0] = taoxy;
 
-                    double qx = - Gamma/(Gamma -1) *(mu_edge[i][k]/fs_Pr) * gradEdge[d_dim][0];
-                    double qy = - Gamma/(Gamma -1) *(mu_edge[i][k]/fs_Pr) * gradEdge[d_dim][1];
+                    double qx = - Gamma/(Gamma -1) *(d_hder_strategy->getMuOverPrEdge(i,k)) * gradEdge[d_dim][0];
+                    double qy = - Gamma/(Gamma -1) *(d_hder_strategy->getMuOverPrEdge(i,k)) * gradEdge[d_dim][1];
                     GeomElements::vector3d<2,double> normal = curEdge.normal_vector();
                     Fv[0] = 0.0;
                     Fv[1] = ((velocity_edge[0]*taoxx+velocity_edge[1]*taoxy-qx)*normal[0]

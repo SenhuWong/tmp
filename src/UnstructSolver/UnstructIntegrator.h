@@ -45,9 +45,10 @@ public:
     int** remoteSendCell_ProcBlockPtr = NULL;
 
 public:
+    UnstructTopologyHolder();
     UnstructTopologyHolder(UnstructFeeder *fder); //Maybe later we might need a reading constructor
     void arrange_communication();
-    void initialize_integrator();
+    void initialize_integrator(UnstructFeeder *fder);
     int nPoints(int blkid)
     {
         if(d_dim==2)

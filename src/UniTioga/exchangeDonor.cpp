@@ -84,14 +84,6 @@ void tioga::exchangeDonors(bool reduce_fringe)
         auto& mb = mblocks[ib];
         mb->initializeDonorList();
     }
-    for (int ib = 0; ib < nblocks; ib++)
-    {
-        auto& mb = mblocks[ib];
-        mb->reset_Iblank();
-        /*if (mb->iblank) TIOGA_FREE(mb->iblank);
-        mb->iblank = new[mb->ncells]*/
-        
-    }
     //
     for (int k = 0; k < nrecv; k++) 
     {
@@ -99,15 +91,15 @@ void tioga::exchangeDonors(bool reduce_fringe)
         int l = 0;
         for (int i = 0; i < rcvPack[k].nints / 4; i++)
         {
-            int meshtag = rcvPack[k].intData[m++];
-            int pointid = rcvPack[k].intData[m++];
-            int remoteid = rcvPack[k].intData[m++];// local receptor's index in remote nsearch
-            int ib = rcvPack[k].intData[m++];
+            int meshtag = rcvPack[k].intData[m++];// Meshtag on the other side(donor side).
+            int pointid = rcvPack[k].intData[m++];// point id at this side(receptor)
+            int remoteid = rcvPack[k].intData[m++];// local receptor's index in remote(donor side)'s nsearch
+            int ib = rcvPack[k].intData[m++];// Block id on this(receptor) side
             double donorRes = rcvPack[k].realData[l++];
             double receptorRes = rcvPack[k].realData[l++];
 
             auto& mb = mblocks[ib];
-            mb->set_Iblank(pointid, -1);
+            // mb->set_Iblank(pointid, -1);
             mb->insertAndSort(pointid, k, meshtag, remoteid, donorRes, receptorRes);
         }
     }
@@ -147,9 +139,6 @@ void tioga::exchangeDonors(bool reduce_fringe)
             int k = donorRecords[n][3 * i];
             sndPack[k].nints += 2;
             sndPack[k].nreals++;
-            /*temp1->donorData[0] = senderid;
-            temp1->donorData[2] = remoteid;
-            temp1->donorData[1] = meshtagdonor;*/
         }
     }
 
@@ -207,6 +196,30 @@ void tioga::exchangeDonors(bool reduce_fringe)
     for (int ib = 0; ib < nblocks; ib++) {
         mblocks[ib]->set_ninterp(ninterp[ib]);
     }
+    // //Output all the receptor
+    // {
+    //     std::ofstream fout;
+    //     for(int ib=0;ib<nblocks;ib++)
+    //     {
+    //         fout.open("afterInterpReceptor_"+std::to_string(ib+1)+"_"+std::to_string(myid));
+    //         auto& mb = mblocks[ib];
+    //         for(int i = 0;i<mb->nsearch;i++)
+    //         {
+    //             int idnsearch = mb->interp2donor[i];
+    //             if(idnsearch>=0)
+    //             {
+    //                 for(int j = 0;j<d_dim;j++)
+    //                 {
+    //                     fout<< mb->xsearch[d_dim*i+j]<< '\t';
+    //                 }
+    //                 fout<< '\n';
+    //             }
+    //         }
+    //         fout.close();
+    //     }
+    
+
+    // }
 
     pc->clearPackets(sndPack, rcvPack);
     //
@@ -286,8 +299,8 @@ void tioga::exchangeDonors(bool reduce_fringe)
     for (int n = 0; n < nblocks; n++) {
         for (int i = 0; i < nrecords[n]; i++) {
             int k = donorRecords[n][3 * i];
-            sndPack[k].intData[ixOffset[k]++] = donorRecords[n][3 * i + 1];
-            sndPack[k].intData[ixOffset[k]++] = donorRecords[n][3 * i + 2];
+            sndPack[k].intData[ixOffset[k]++] = donorRecords[n][3 * i + 1];//point id in nnode
+            sndPack[k].intData[ixOffset[k]++] = donorRecords[n][3 * i + 2];//block id
         }
     }
     

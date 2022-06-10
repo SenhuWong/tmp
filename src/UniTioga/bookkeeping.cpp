@@ -300,7 +300,10 @@ void MeshBlock::initializeInterpList(int ninterp_input)
     ncancel = 0;
     if (interp2donor) TIOGA_FREE(interp2donor);
     interp2donor = new int[nsearch];
-    for (int i = 0; i < nsearch; i++) interp2donor[i] = -1;
+    for (int i = 0; i < nsearch; i++)
+    {
+        interp2donor[i] = -1;
+    }
 
 }
 static int cancel_count = 0;

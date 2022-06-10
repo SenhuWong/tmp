@@ -15,6 +15,10 @@ Reader{
     nmesh = 2
     overTag = -2147483647
     wallTag = -2
+    //mesh_1 = "fuselage_part.grd"
+    //mesh_2 = "rotor1.grd"
+    //mesh_3 = "rotor2.grd"
+    //mesh_1 = "mix_element_laminar.grd"
     mesh_1 = "part1.grd"
     mesh_2 = "part2.grd"
 
@@ -108,5 +112,16 @@ SAMRAI{
     }
 }
 
-
+SOLVER{
+    FlowType = "ViscousFlow2D"
+    AdvanceType = "LUSGS"
+    SolveType = "STABLE"
+    MaximumTimeStep = 20001
+    MinimumResidual = 1.0e-10
+    Params{
+        Ma = 0.85
+        Re = 2000
+        AOA = 0
+    }
+}
 

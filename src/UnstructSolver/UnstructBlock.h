@@ -1,6 +1,7 @@
 #pragma once
 #include "../toolBox/cell3d_int.h"
 #include "../toolBox/edge3d_int.h"
+#include "UniTioga/ADT.h"
 #include "commCell.h"
 #include <map>
 #include <set>
@@ -34,8 +35,15 @@ public:
     CommunicationLayerFilter * d_sendNear = NULL;
     CommunicationLayerFilter * d_recvRemote = NULL;
     CommunicationLayerFilter * d_recvNear = NULL;
+    //Needed by SST-kw
+    int gNwbc = 0;
+    double* gNwbcCoord = NULL;
+	double* wallCellDistance = NULL;
+    virtual void ComputeWallCellDistance()
+    {
 
-   
+
+    }
     
     
 public:
@@ -254,7 +262,40 @@ public:
     GeomElements::cell3d<ndim> *d_localCells = NULL;
     GeomElements::edge3d<ndim> *d_localEdges = NULL;
 
-
+    void ComputeWallCellDistance() override
+    {
+        std::set<int,std::less<int>> wallEdgeInds;
+        for(int i = 0;i<d_nEs;i++)
+        {
+            int rC = d_localEdges[i].rCInd();
+            if(rC == GeomElements::edge3d<ndim>::WALL)
+            {
+                wallEdgeInds.insert(i);
+            }
+        }
+        wallCellDistance = new double[d_nCs];
+        for(int i = 0;i<d_nCs;i++)
+        {
+            auto& curCell = d_localCells[i];
+            wallCellDistance[i] = 100000000000;
+            for(auto iter = wallEdgeInds.begin();iter!=wallEdgeInds.end();iter++)
+            {
+                GeomElements::edge3d<ndim>& curEdge = d_localEdges[*iter];
+                GeomElements::vector3d<ndim,double> curPoint = d_localEdges[*iter].center();
+                GeomElements::vector3d<ndim,double> Cell2Point = curCell.center() - curPoint;
+                // double dist = Cell2Point.normalize();
+                double dist =fabsf64(Cell2Point.dot_product(curEdge.normal_vector()));
+                wallCellDistance[i] =std::min<double>(wallCellDistance[i],dist);
+            }
+            // for(int j = 0;j<gNwbc;j++)
+            // {
+            //     GeomElements::vector3d<ndim,double> curPoint(&(gNwbcCoord[j*ndim]));
+            //     GeomElements::vector3d<ndim,double> Cell2Point = curCell.center() - curPoint;
+            //     double dist = Cell2Point.normalize();
+            //     wallCellDistance[i] = std::min<double>(wallCellDistance[i],dist);
+            // }
+        }
+    }
     // std::set<int,std::less<int>>* getRecvIndSet() override
     // {
     //     std::cout<<"Allocating for recvindset\n";
@@ -314,6 +355,27 @@ public:
             fout << '\n';
         }
         fout.close();
+    }
+
+    void move_by(double dx,double dy,double dz)
+    {
+        if(ndim==2)
+        {
+            for(int i = 0;i<d_nPs;i++)
+            {
+                d_localPoints[i][0] += dx;
+                d_localPoints[i][1] += dy;
+            }
+        }
+        else if(ndim==3)
+        {
+            for(int i = 0;i<d_nPs;i++)
+            {
+                d_localPoints[i][0] += dx;
+                d_localPoints[i][1] += dy;
+                d_localPoints[i][2] += dz;
+            }
+        }
     }
 
     void write_grdSendRecv(const std::string &filename, int meshtag, int cur_proc)
@@ -519,6 +581,8 @@ public:
         {
             d_localEdges[i].computeMetaData();
         }
+
+        ComputeWallCellDistance();
     }
 
     void bindCurPoints()

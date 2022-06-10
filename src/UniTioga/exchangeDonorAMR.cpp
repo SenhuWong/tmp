@@ -195,9 +195,9 @@ void tioga::exchangeAMRDonors()
 
     for (int i = 0; i < ncart; i++)
     {
-        cb[i].writeCellFile("BeforeProcessDonors");
+        // cb[i].writeCellFile("BeforeProcessDonors");
         cb[i].processDonors(holeMap, nmesh);
-        cb[i].writeCellFile("AfterProcessDonors");
+        // cb[i].writeCellFile("AfterProcessDonors");
     }
 
 

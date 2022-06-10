@@ -77,74 +77,13 @@ namespace {
 }
 
 
-//void MeshBlock::dummy_search()
-//{
-//    iblank_cell = new int[ncells];
-//    int* visited_cell = new int[ncells];
-//    good_or_bad = new int[nsearch];
-//
-//    for (int i = 0; i < nsearch; i++)
-//    {
-//        good_or_bad[i] = 1;
-//    }
-//    for (int i = 0; i < ncells; i++)
-//    {
-//        iblank_cell[i] = 1;
-//        visited_cell[i] = 1;
-//    }
-//    if (nsearch == 0)
-//    {
-//        return;
-//    }
-//    double xv[3][3];
-//    double xp[2];
-//    double frac[3];
-//    for (int i = 0; i < nsearch; i++)
-//    {
-//        xp[0] = xsearch[2 * i];
-//        xp[1] = xsearch[2 * i + 1];
-//        for (int j = 0; j < nc[0]; j++)
-//        {
-//            visited_cell[j] = -1;
-//            for (int k = 0; k < 3; k++)
-//            {
-//                int inode = 2 * (vconn[0][3 * j + k] - BASE);
-//                xv[k][0] = x[inode];
-//                xv[k][1] = x[inode + 1];
-//            }
-//            bool inside1 = real_TriangleInclusionTest(xp, xv);
-//            if (inside1)
-//            {
-//                good_or_bad[i] = -1;
-//                iblank_cell[j] = -1;
-//            }
-//
-//            computeNodalWeight2D(xv, xp, frac, 3);
-//            bool inside2 = true;
-//            for (int k = 0; k < 3; k++)
-//            {
-//                if (frac[k] < -TOL or frac[k]>1 + TOL)
-//                {
-//                    inside2 = false;
-//                }
-//            }
-//            if (inside1 != inside2)
-//            {
-//                throw std::runtime_error("Two Inclusion Test results differ!!!!!!!!!!!!!!!!!\n");
-//            }
-//        }
-//    }
-//    
-//    writeCellFile("FoundDonor");
-//    writeCellFile2("AskedDonors", visited_cell);
-//}
 #include<fstream>
 void MeshBlock::search()
 {
     
-    std::string filename = "FoundQueries" + std::to_string(myid) + std::to_string(meshtag) + ".sct";
-    std::ofstream fout;
-    fout.open(filename);
+    // std::string filename = "FoundQueries" + std::to_string(myid) + std::to_string(meshtag) + ".sct";
+    // std::ofstream fout;
+    // fout.open(filename);
     int ndim, id;
     int iptr, isum, nvert;
     OBB* obq;

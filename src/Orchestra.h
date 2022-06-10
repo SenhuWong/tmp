@@ -6,6 +6,7 @@
 #include "SAMRAI/mesh/TreeLoadBalancer.h"
 #include "SAMRAI/geom/CartesianPatchGeometry.h"
 #include "samrai/SamraiWrapper.h"
+#include "UnstructSolver/SolverWrapper.h"
 #include <memory>
 #include <numeric>
 
@@ -17,6 +18,7 @@ private:
     TIOGA::tioga *tg = NULL;
 
     WrapSAMRAI* samrai = NULL;
+    WrapSolver* solver = NULL;
     std::shared_ptr<PureGeometricIntegrator> samrai_integrator = NULL;
     int cur_proc = -1;
     int num_proc = -1;

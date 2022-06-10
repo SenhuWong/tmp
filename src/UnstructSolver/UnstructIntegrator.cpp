@@ -3,6 +3,39 @@
 //#include "TiogaFeeder.h"
 #include "UnstructFeeder.h"
 #include <set>
+
+UnstructTopologyHolder::UnstructTopologyHolder()
+{
+
+}
+
+void UnstructTopologyHolder::initialize_integrator(UnstructFeeder *fder)
+{
+    d_nmesh = fder->d_nmesh;
+    d_dim = fder->d_dim;
+
+    numproc = fder->num_proc;
+    curproc = fder->cur_proc;
+
+    blk2D = fder->UBs2;
+    blk3D = fder->UBs3;
+    
+    if (d_dim == 2)
+    {
+        std::cout << "MetaData is computed\n";
+        for (int i = 0; i < d_nmesh; i++)
+        {
+            blk2D[i].computeEdgeCellMetaData();
+        }
+    }
+    else if (d_dim == 3)
+    {
+    }
+    else
+    {
+        throw std::runtime_error("Undefined Dimension\n");
+    }
+}
 UnstructTopologyHolder::UnstructTopologyHolder(UnstructFeeder *fder)
 {
     

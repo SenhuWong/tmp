@@ -22,6 +22,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/tioga.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/TiogaFeeder.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/utils.cpp
 ${CMAKE_CURRENT_SOURCE_DIR}/write.cpp
+${CMAKE_CURRENT_SOURCE_DIR}/dataUpdate.cpp
 
 #These are under development but for symbols let's link them
 ${CMAKE_CURRENT_SOURCE_DIR}/amr_index.cpp

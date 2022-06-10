@@ -20,6 +20,7 @@ Orchestra::Orchestra(int argc, char *argv[])
     rd = new CobaltReader[1];
     tg = new TIOGA::tioga[1];
     samrai = new WrapSAMRAI[1];
+    solver = new WrapSolver[1];
 
     //Get input to initialize SAMRAI Strategy together with rd and tioga
 
@@ -70,11 +71,11 @@ Orchestra::Orchestra(int argc, char *argv[])
     //Initialize for READER
     rd->setComm(cur_proc, num_proc);
     tg->setCommunicator(MPI_COMM_WORLD, cur_proc, num_proc);
-
+    int dim;
     if (input_db->keyExists("Reader"))
     {
         std::shared_ptr<SAMRAI::tbox::Database> reader_db(input_db->getDatabase("Reader"));
-        int dim = reader_db->getInteger("dim");
+        dim = reader_db->getInteger("dim");
 
         int nmesh = reader_db->getInteger("nmesh");
         int overTag = reader_db->getInteger("overTag");
@@ -116,6 +117,40 @@ Orchestra::Orchestra(int argc, char *argv[])
         std::shared_ptr<SAMRAI::tbox::Database> samrai_db(input_db->getDatabase("SAMRAI"));
         samrai->getFromInput(samrai_db, false);
         samrai_db.reset();
+    }
+
+    if (input_db->keyExists("SOLVER"))
+    {
+        std::cout<<"Solver exist\n";
+        std::shared_ptr<SAMRAI::tbox::Database> solver_db(input_db->getDatabase("SOLVER"));
+        solver->setTopology(rd);
+        
+        std::string flow_type = solver_db->getString("FlowType");
+        
+        std::string advance_type = solver_db->getString("AdvanceType");
+        
+        std::string solve_type = solver_db->getString("SolveType");
+
+        int nMaxStep = solver_db->getInteger("MaximumTimeStep");
+        double minimalResidual = solver_db->getDouble("MinimumResidual");
+        double ma;
+        double re;
+        double aoa;
+        std::shared_ptr<SAMRAI::tbox::Database> flowParam_db(solver_db->getDatabase("Params"));
+        {
+            ma = flowParam_db->getDouble("Ma");
+            re =  flowParam_db->getDouble("Re");
+            if(dim==2)
+            {
+                aoa = flowParam_db->getDouble("AOA");//2D for now.
+            }
+            else 
+            {
+                throw std::runtime_error("3D not implemented yet\n");
+            }
+        }
+        solver->setParams(flow_type,advance_type,solve_type,nMaxStep,minimalResidual,ma,re,&aoa);
+        solver_db.reset();
     }
     input_db.reset();
 }
@@ -159,7 +194,6 @@ void Orchestra::performGeometricRefineOverset()
         std::cout<<"Cur proc is "<<cur_proc<<" this block id is "<<global_id[i]<<'\n';
     }
     tg->performConnectivity();
-    // return;
     MPI_Barrier(MPI_COMM_WORLD);
     tg->performConnectivityAMR();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -167,7 +201,17 @@ void Orchestra::performGeometricRefineOverset()
 void Orchestra::init()
 {
     rd->readAll();
-    // rd->make_movement(1,-0.7,0.15,0);
+    rd->make_movement(1,-0.7,0.15,0);
+
+
+    solver->init(rd);
+    // 
+    // for(int i = 0;i<rd->d_nmesh;i++)
+    // {
+    //     auto& curBi = rd->bis[i];
+    //     curBi.ibl = solver->d_flow_strategy->getIblankCell()[i];
+    // }
+    
     //std::cout<<"End of readaLL\n";
     MPI_Barrier(MPI_COMM_WORLD);
     tg->registerFromFeeder(rd);
@@ -177,20 +221,145 @@ void Orchestra::init()
     tg->profile();
     MPI_Barrier(MPI_COMM_WORLD);
     tg->reResolution();
-    
-    samrai->init(rd);
+    //Set iblank_cell from solver to tioga
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        tg->set_cell_iblank(i+1,solver->d_flow_strategy->getIblankCell()[i]);
+    }
+    tg->performConnectivity();
     MPI_Barrier(MPI_COMM_WORLD);
+    //At here,we perform a simple assignment of each value in flow strategy to be its mesh ind
+    
+    double** U = solver->d_flow_strategy->getU();
+    int nequ = solver->d_flow_strategy->getNEquation();
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        int value = i+1;
+        for(int k = 0;k<solver->d_flow_strategy->getNEquation()*solver->d_topology_holder->nCells(i);k++)
+        {
+            U[i][k] = value;
+        }
+    }
 
-    //For now, let's just perform a pureGeometric refine here
-    //This need to be implemented in samraiWrapper as something like
-    // samrai->make_geometric_refine()
-    // samrai->find_patch_for_overset()
-    // samrai->extract patch_for_overset()
-    // tioga->register_amr_global_data()
-    // tioga->register_amr_local_data()
+    double** nodeUs = new double*[rd->d_nmesh];
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        int value = i+1;
+        nodeUs[i] = new double[nequ*solver->d_topology_holder->nPoints(i)];
+        for(int k = 0;k<nequ*solver->d_topology_holder->nPoints(i);k++)
+        {
+            nodeUs[i][k] = value;
+        }
+    }
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        tg->mblocks[i]->writeGridFile2("beforeNode",nodeUs[i],nequ);
+    }
+    //The dataUpdate between nodeUs is done.
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        tg->registerSolution(i+1,nodeUs[i]);
+    }
+
+    tg->dataUpdate(nequ,0,0);
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        tg->mblocks[i]->writeGridFile2("afterrNode",nodeUs[i],nequ);
+    }
+    for(int i = 0;i<rd->d_nmesh;i++)
+    {
+        int cellId = 0;
+        for(int k = 0;k<tg->mblocks[i]->ntypes;k++)
+        {
+            int nvert = tg->mblocks[i]->nv[k];
+            for(int typeC = 0;typeC < tg->mblocks[i]->nc[k];typeC++)
+            {
+                for(int l = 0;l< nequ; l++)
+                {
+                    U[i][cellId*nequ+l] = 0;
+                    for(int j = 0;j<nvert;j++)
+                    {
+                        int nodeId = tg->mblocks[i]->vconn[k][nvert*typeC+j];
+                        
+                        U[i][cellId*nequ+l] += nodeUs[i][nodeId*nequ+l];
+                    }
+                    U[i][cellId*nequ+l] /= nvert;
+
+                }
+
+                ++cellId;
+            }
+        }
+        // for(int k = 0;k<solver->d_topology_holder->nPoints(i);k++)
+        // {
+        //     for(int j = 0;j<nequ;j++)
+        //     {
+        //         int offset = k*nequ+j;
+            
+        //         if(fabsf64(nodeUs[i][offset] - value) >0.5)
+        //         {
+        //             std::cout<<nodeUs[i][offset]<<" should be "<<value<<'\n';
+        //             fout<< solver->d_topology_holder->blk2D[i].d_localPoints[k][0]
+        //             <<" "<<solver->d_topology_holder->blk2D[i].d_localPoints[k][1]<<"\n";
+        //         // std::cin.get();
+        //         }
+        //     }
+        //     // nodeUs[i][k] = value;
+        // }
+        // fout.close();
+    }
+    //Now it is time to take it back to cellUs
+    // for(int i = 0;i<rd->d_nmesh;i++)
+    // {
+    //     int value = i+1;
+    //     auto& curBlk = solver->d_topology_holder->blk2D[i];
+        
+    //     for(int k = 0;k<solver->d_topology_holder->nCells(i);k++)
+    //     {
+    //         // std::cout<<k<<" Checking\n";
+    //         // std::cout<<"solver->d_topology_holder->nCells(k)"<<solver->d_topology_holder->nCells(k)<<'\n';
+    //         auto& curCell = curBlk.d_localCells[k];
+            
+    //         for(int l = 0;l< nequ;l++)
+    //         {    
+    //             U[i][k*nequ+l] = 0;
+                
+    //             for(int j = 0;j<curCell.size();j++)
+    //             {
+    //                 int nodeId = curCell.pointInd(j);
+                    
+    //                 if(fabsf64(nodeUs[i][nodeId*nequ+l] - value)>0.5)
+    //                 {
+    //                     std::cout<<"Updating cell should have some change\n";
+    //                 }
+    //                 U[i][k*nequ+l] += nodeUs[i][nodeId*nequ+l];
+    //             }
+    //             U[i][k*nequ+l] = U[i][k*nequ+l]/curCell.size();
+    //         }
+    //     }
+    // }
+
+    tg->mblocks[0]->writeCellFile2("finalTioga0",nequ,U[0]);
+    tg->mblocks[1]->writeCellFile2("finalTioga1",nequ,U[1]);
+
+    solver->d_flow_strategy->writeNOdeData("finalnode0",cur_proc,0,nodeUs);
+    solver->d_flow_strategy->writeNOdeData("finalnode1",cur_proc,1,nodeUs);
+
+    solver->d_flow_strategy->writeCellData("final0",cur_proc,0,U);
+    solver->d_flow_strategy->writeCellData("final1",cur_proc,1,U);
+    
+
+    // samrai->init(rd);
+    // MPI_Barrier(MPI_COMM_WORLD);
+    
+
+    return;
+   
+    // solver->Loop();
+
     performGeometricRefineOverset();
-    samrai->dump_data(10);
-    dumpCartesian("I",0.0);
+    // samrai->dump_data(10);
+    // dumpCartesian("I",0.0);
     return;
 
     //Take all the CartGrid out of SAMRAI into TIOGA

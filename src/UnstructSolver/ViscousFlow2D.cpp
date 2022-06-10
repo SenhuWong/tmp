@@ -41,7 +41,28 @@ class PressureHolder2D
     }
 
 };
+void ViscousFlow2D::initializeSubStrategy()
+{
+    // Communication set
+    cur_proc = d_hder->curproc;
+    num_proc = d_hder->numproc;
+    // Topology holder set
+    auto limiter = new Vankatakrishnan_Limiter<2>(d_hder, this);
+#ifdef DEBUG
+    limiter->setComm(cur_proc, num_proc);
 
+#endif // DEBUG
+    d_cfluxComputer = new HLLCFluxStrategy(d_hder, this, limiter);
+    d_cfluxComputer->setComm(num_proc, cur_proc);
+    d_vfluxComputer = new LaminarFluxStrategy(d_hder,this);
+    // Allocate Data Storage for this problem
+    d_boundaryHandler = new BoundaryStrategy(d_hder,this);
+    registerTopology();
+
+    d_turbulentModel = new SSTkomegaModel<2>(d_hder,this,d_vfluxComputer);
+    turbModelTimeStrategy = new LUSGSIntegrator(d_hder,d_turbulentModel);
+
+}
 ViscousFlow2D::ViscousFlow2D(UnstructTopologyHolder *hder)
     : TopologyHolderStrategy(hder,4)
 {
@@ -54,16 +75,16 @@ ViscousFlow2D::ViscousFlow2D(UnstructTopologyHolder *hder)
     limiter->setComm(cur_proc, num_proc);
 
 #endif // DEBUG
-    TopologyHolderStrategy::set_fs_variable2(0.85, 0, 1.225, 101325, 2000);
-    //
-    TopologyHolderStrategy::update_nondim_variable();
+    TopologyHolderStrategy::set_fs_variable3(0.73, 2.79, 288.0, 101325, 6.5e6);
     d_cfluxComputer = new HLLCFluxStrategy(d_hder, this, limiter);
     d_cfluxComputer->setComm(num_proc, cur_proc);
     d_vfluxComputer = new LaminarFluxStrategy(d_hder,this);
     // Allocate Data Storage for this problem
     d_boundaryHandler = new BoundaryStrategy(d_hder,this);
     registerTopology();
-    // This should be done with an input_db
+
+    d_turbulentModel = new SSTkomegaModel<2>(d_hder,this,d_vfluxComputer);
+    turbModelTimeStrategy = new LUSGSIntegrator(d_hder,d_turbulentModel);
     
 }
 
@@ -81,9 +102,11 @@ void ViscousFlow2D::registerTopology()
     Spectrum_cell_v = new double *[d_nmesh];
     // Compute left and right value of Conservative Variables
     Residual = new double *[d_nmesh];
+    d_stableDt = new double*[d_nmesh];
     // normal_vector = new double *[d_nmesh];
     for (int i = 0; i < d_nmesh; i++)
     {
+        d_stableDt[i] = new double[d_hder->nCells(i)];
         U[i] = new double [d_NEQU*d_hder->nCells(i)];
         Residual[i] = new double [d_NEQU*d_hder->nCells(i)];
         gradU[i] = new GeomElements::vector3d<2, double> [d_NEQU*d_hder->nCells(i)];
@@ -112,8 +135,9 @@ void ViscousFlow2D::initializeData()
     }
     for (int k = 0; k < d_NEQU; k++)
     {
-        std::cout << fs_primVar[k] << '\n';
+        std::cout<<"fs_primVars:" << fs_primVar[k] << '\n';
     }
+    turbModelTimeStrategy->initializeData();
 }
 
 void ViscousFlow2D::ReconstructionInitial()
@@ -216,7 +240,7 @@ void ViscousFlow2D::solveSpectralRadius()
                 Spectrum_cell_c[i][rC] += Spectrum_edge;
             }
             auto& leftCell = curBlk.d_localCells[lC];
-            Spectrum_edge = std::max<double>(4/(3.0*U_edge[i][0+d_NEQU*k]),Gamma/U_edge[i][0+d_NEQU*k])*d_vfluxComputer->getMuOverPrEdge(i,k)*curEdge.area()*curEdge.area();
+            Spectrum_edge = std::max<double>(4/(3.0*U_edge[i][0+d_NEQU*k]),Gamma/U_edge[i][0+d_NEQU*k])*getMuOverPrEdge(i,k)*curEdge.area()*curEdge.area();
             Spectrum_cell_v[i][lC] += Spectrum_edge / leftCell.volume();
             if(rC >= 0)
             {
@@ -231,6 +255,7 @@ void ViscousFlow2D::solveSpectralRadius()
 void ViscousFlow2D::updateFlux(int istage)
 {
     d_cfluxComputer->computeFlux();
+
     d_vfluxComputer->computeFlux(istage);
 }
 

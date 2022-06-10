@@ -88,6 +88,8 @@ public:
 	{
 		auto &cur_bi = bis[index];
 		cur_bi.move_by(dx, dy, dz);
+		auto &cur_ub = UBs2[index];
+		cur_ub.move_by(dx, dy, dz);
 	}
 
 
@@ -100,6 +102,11 @@ public:
 		readForSamrai();
 		std::cout<<"Entering read for unstruct\n";
 		readForUnstruct();
+		// for(int i = 0;i<d_nmesh;i++)
+		// {
+		// 	UBs2[i].gNwbc = bis[i].gNwbc;
+		// 	UBs2[i].gNwbcCoord=bis[i].gWxyz;
+		// }
 		
 	}
 
